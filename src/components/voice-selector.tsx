@@ -68,6 +68,10 @@ export function VoiceSelector() {
     }
   };
 
+  const capitalize = (str: string) => {
+    return str.charAt(0).toUpperCase() + str.slice(1);
+  };
+
   return (
     <div className="space-y-2">
       <div className="flex justify-between items-center">
@@ -95,10 +99,11 @@ export function VoiceSelector() {
               value={voice.value}
               className="flex items-center justify-between"
             >
-              <div className="flex flex-col">
+              <div className="flex flex-row items-center gap-2">
                 <span>{voice.name}</span>
                 <span className="text-xs text-muted-foreground">
-                  {voice.gender} • {voice.accent} • {voice.style}
+                  {capitalize(voice.gender)} • {capitalize(voice.accent)} •{" "}
+                  {capitalize(voice.style)}
                 </span>
               </div>
             </SelectItem>
