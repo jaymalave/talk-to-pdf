@@ -24,22 +24,15 @@ import {
 } from "lucide-react";
 import { VoiceSelector } from "@/components/voice-selector";
 import { AudioControls } from "@/components/audio-controls";
-import "react-pdf/dist/esm/Page/TextLayer.css"; // If you want text selection
-import "react-pdf/dist/esm/Page/AnnotationLayer.css"; // If you want annotation highlights
+import "react-pdf/dist/esm/Page/TextLayer.css";
+import "react-pdf/dist/esm/Page/AnnotationLayer.css";
 
-// // ----- PDF Worker Setup -----
-// pdfjs.GlobalWorkerOptions.workerSrc = new URL(
-//   "pdfjs-dist/build/pdf.worker.js",
-//   import.meta.url
-// ).toString();
-
-// pdfjs.GlobalWorkerOptions.workerSrc = `https://unpkg.com/pdfjs-dist@${pdfjs.version}/legacy/build/pdf.worker.min.mjs`;
-
+// If you have pdf.worker.js in /public:
 pdfjs.GlobalWorkerOptions.workerSrc = "/pdf.worker.js";
 
 export function PdfViewer() {
   const [file, setFile] = useState<File | null>(null);
-  const [docUrl, setDocUrl] = useState<string>(""); // <-- Store object URL here
+  const [docUrl, setDocUrl] = useState<string>(""); // object URL
   const [numPages, setNumPages] = useState<number>(0);
   const [pageNumber, setPageNumber] = useState<number>(1);
   const [scale, setScale] = useState<number>(1.0);
@@ -58,9 +51,7 @@ export function PdfViewer() {
 
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  // --------------------------------------------------
   // Generate/Revoke the object URL whenever `file` changes
-  // --------------------------------------------------
   useEffect(() => {
     if (!file) {
       setDocUrl("");
@@ -69,14 +60,11 @@ export function PdfViewer() {
     const objectUrl = URL.createObjectURL(file);
     setDocUrl(objectUrl);
     return () => {
-      // Clean up old URL when `file` changes or component unmounts
       URL.revokeObjectURL(objectUrl);
     };
   }, [file]);
 
-  // -------------------------------------------
-  // PDF load success and error handlers
-  // -------------------------------------------
+  // ---------------- PDF Handlers ----------------
   function onDocumentLoadSuccess(document: pdfjs.PDFDocumentProxy) {
     try {
       console.log("Document loaded successfully");
@@ -84,8 +72,9 @@ export function PdfViewer() {
       setPageNumber(1);
       setIsLoading(false);
       setPdfDocument(document);
-      // If you want to extract text for the entire doc, uncomment:
-      // extractTextFromPdf(document, document.numPages);
+
+      // Optionally extract full text
+      extractTextFromPdf(document, document.numPages);
     } catch (error) {
       console.error("Error loading PDF:", error);
       toast.error("Error loading PDF", {
@@ -105,9 +94,6 @@ export function PdfViewer() {
     setFile(null);
   }
 
-  // -------------------------------------------
-  // (Optional) Full text extraction
-  // -------------------------------------------
   async function extractTextFromPdf(
     pdfDoc: pdfjs.PDFDocumentProxy,
     totalPages: number
@@ -129,14 +115,13 @@ export function PdfViewer() {
     }
   }
 
-  // -------------------------------------------
-  // File handling
-  // -------------------------------------------
+  // ---------------- File Handling ----------------
   function handleFileChange(event: React.ChangeEvent<HTMLInputElement>) {
     const files = event.target.files;
     if (files && files[0]) {
       setIsLoading(true);
       setFile(files[0]);
+
       // Reset search and text
       setSearchText("");
       setSearchResults([]);
@@ -151,6 +136,7 @@ export function PdfViewer() {
     if (event.dataTransfer.files && event.dataTransfer.files[0]) {
       setIsLoading(true);
       setFile(event.dataTransfer.files[0]);
+
       // Reset search and text
       setSearchText("");
       setSearchResults([]);
@@ -164,7 +150,6 @@ export function PdfViewer() {
     event.stopPropagation();
   }
 
-  // Clear file and reset all states
   function clearFile() {
     setFile(null);
     setNumPages(0);
@@ -179,9 +164,7 @@ export function PdfViewer() {
     }
   }
 
-  // -------------------------------------------
-  // Pagination & Zoom
-  // -------------------------------------------
+  // ---------------- Pages & Zoom ----------------
   function handlePageChange(newPage: number) {
     if (newPage >= 1 && newPage <= numPages) {
       setPageNumber(newPage);
@@ -202,9 +185,7 @@ export function PdfViewer() {
     });
   }
 
-  // -------------------------------------------
-  // Search
-  // -------------------------------------------
+  // ---------------- Searching ----------------
   async function handleSearch() {
     if (!searchText.trim() || !pdfDocument) return;
     setIsSearching(true);
@@ -255,15 +236,12 @@ export function PdfViewer() {
     setPageNumber(searchResults[newIndex].pageNumber);
   }
 
-  // -------------------------------------------
-  // (Mock) Text-to-Speech
-  // -------------------------------------------
+  // -------------- Text-to-Speech -------------
   function handleGenerateAudio() {
     if (!pdfText) {
       toast.error("Please upload a PDF first.");
       return;
     }
-
     setIsGeneratingAudio(true);
     setAudioProgress(0);
 
@@ -285,68 +263,69 @@ export function PdfViewer() {
     setIsPlaying(!isPlaying);
   }
 
-  // -------------------------------------------
-  // Render
-  // -------------------------------------------
+  // ---------------------------------------------
+  // LAYOUT: horizontal, no scrolling
+  // ---------------------------------------------
   return (
-    <div className="w-full">
-      {/* If no file is selected, show upload prompt */}
-      {!file ? (
-        <div
-          className="border-2 border-dashed border-border rounded-lg p-12 text-center hover:border-primary/50 transition-colors"
-          onDrop={handleDrop}
-          onDragOver={handleDragOver}
-        >
-          <div className="flex flex-col items-center gap-4">
-            <div className="bg-primary/10 p-4 rounded-full">
-              <FileText className="h-8 w-8 text-primary" />
+    <div className="flex w-screen h-screen overflow-hidden">
+      {/* LEFT SIDE: PDF Viewer */}
+      <div className="flex-1 max-h-[75%] overflow-hidden flex flex-col max-w-[45%]">
+        {/* If no file, show upload prompt */}
+        {!file ? (
+          <div
+            className="flex-1 border-2 border-dashed border-border rounded-lg my-4 mr-4 p-12 text-center hover:border-primary/50 transition-colors"
+            onDrop={handleDrop}
+            onDragOver={handleDragOver}
+          >
+            <div className="flex flex-col items-center gap-4">
+              <div className="bg-primary/10 p-4 rounded-full">
+                <FileText className="h-8 w-8 text-primary" />
+              </div>
+              <div>
+                <h3 className="text-lg font-medium">Upload your PDF</h3>
+                <p className="text-sm text-muted-foreground mt-1">
+                  Drag and drop your file here or click to browse
+                </p>
+              </div>
+              <Button
+                onClick={() => fileInputRef.current?.click()}
+                className="mt-2"
+              >
+                <Upload className="mr-2 h-4 w-4" />
+                Select PDF
+              </Button>
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept="application/pdf"
+                onChange={handleFileChange}
+                className="hidden"
+              />
             </div>
-            <div>
-              <h3 className="text-lg font-medium">Upload your PDF</h3>
-              <p className="text-sm text-muted-foreground mt-1">
-                Drag and drop your file here or click to browse
-              </p>
-            </div>
-            <Button
-              onClick={() => fileInputRef.current?.click()}
-              className="mt-2"
-            >
-              <Upload className="mr-2 h-4 w-4" />
-              Select PDF
-            </Button>
-            <input
-              ref={fileInputRef}
-              type="file"
-              accept="application/pdf"
-              onChange={handleFileChange}
-              className="hidden"
-            />
           </div>
-        </div>
-      ) : (
-        /* PDF is selected: show viewer */
-        <div className="flex flex-col gap-4">
-          {/* Header Row */}
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <FileText className="h-5 w-5 text-primary" />
-              <span className="font-medium truncate max-w-[200px] sm:max-w-xs">
-                {file.name}
-              </span>
+        ) : (
+          // Else show the PDF viewer
+          <div className="flex flex-col h-full overflow-hidden">
+            {/* Header Row */}
+            <div className="flex items-center justify-between p-2 border-b bg-muted/50">
+              <div className="flex items-center gap-2">
+                <FileText className="h-5 w-5 text-primary" />
+                <span className="font-medium truncate max-w-[150px] sm:max-w-[200px]">
+                  {file.name}
+                </span>
+              </div>
+              <Button
+                variant="ghost"
+                size="icon"
+                onClick={clearFile}
+                aria-label="Clear PDF"
+              >
+                <X className="h-4 w-4" />
+              </Button>
             </div>
-            <Button
-              variant="ghost"
-              size="icon"
-              onClick={clearFile}
-              aria-label="Clear PDF"
-            >
-              <X className="h-4 w-4" />
-            </Button>
-          </div>
 
-          {/* PDF Controls / Viewer */}
-          <div className="border rounded-lg overflow-hidden bg-card">
-            <div className="flex flex-wrap items-center justify-between p-2 border-b bg-muted/50 gap-2">
+            {/* PDF Controls */}
+            <div className="flex flex-wrap items-center justify-between p-2 border-b bg-muted/50">
               {/* Zoom Controls */}
               <div className="flex items-center gap-1">
                 <Button
@@ -463,11 +442,19 @@ export function PdfViewer() {
             {/* Main PDF Display */}
             <div
               className={cn(
-                "flex justify-center p-4 min-h-[500px] bg-muted/30",
+                "flex-1 flex justify-center bg-muted/30",
                 isLoading ? "items-center" : "items-start"
               )}
+              style={{ overflow: "hidden" }} // No scrolling
             >
-              {docUrl ? (
+              {isLoading ? (
+                <div className="flex flex-col items-center gap-2">
+                  <Loader2 className="h-8 w-8 animate-spin text-primary" />
+                  <p className="text-sm text-muted-foreground">
+                    Loading PDF...
+                  </p>
+                </div>
+              ) : docUrl ? (
                 <Document
                   file={docUrl}
                   onLoadSuccess={onDocumentLoadSuccess}
@@ -481,7 +468,6 @@ export function PdfViewer() {
                   <Page
                     pageNumber={pageNumber}
                     scale={scale}
-                    // If you want text or annotation layers, set these true
                     renderTextLayer={true}
                     renderAnnotationLayer={true}
                     loading={<Skeleton className="h-[500px] w-[350px]" />}
@@ -490,70 +476,69 @@ export function PdfViewer() {
               ) : null}
             </div>
           </div>
+        )}
+      </div>
 
-          {/* Text-to-Speech Controls */}
-          <div className="mt-4 border rounded-lg p-4 bg-card">
-            <h3 className="text-lg font-medium mb-4 flex items-center">
-              <Volume2 className="mr-2 h-5 w-5 text-primary" />
-              Text-to-Speech
-            </h3>
+      {/* RIGHT SIDE: Text-to-Speech Panel */}
+      <div className="h-[75%] overflow-hidden p-4 flex flex-col max-w-[45%] w-full">
+        {/* Title */}
+        <div className="flex items-center mb-4">
+          <Volume2 className="mr-2 h-5 w-5 text-primary" />
+          <h3 className="text-lg font-medium">Text-to-Speech</h3>
+        </div>
 
-            <div className="space-y-4">
-              <VoiceSelector />
-              <AudioControls />
+        {/* Voice Selector & Audio Controls */}
+        <VoiceSelector />
+        <div className="flex flex-col gap-2 mt-4">
+          <AudioControls />
 
-              <div className="flex flex-col gap-2">
-                <div className="flex justify-between items-center">
-                  <span className="text-sm font-medium">
-                    Generation Progress
-                  </span>
-                  {audioProgress > 0 && (
-                    <span className="text-xs text-muted-foreground">
-                      {audioProgress}%
-                    </span>
-                  )}
-                </div>
-                <Progress value={audioProgress} className="h-2" />
-              </div>
-
-              <div className="flex gap-2">
-                <Button
-                  onClick={handleGenerateAudio}
-                  disabled={isGeneratingAudio || !pdfText}
-                  className="flex-1"
-                >
-                  {isGeneratingAudio ? (
-                    <>
-                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                      Generating...
-                    </>
-                  ) : (
-                    <>Generate Audio</>
-                  )}
-                </Button>
-                <Button
-                  variant={isPlaying ? "destructive" : "outline"}
-                  onClick={togglePlayPause}
-                  disabled={isGeneratingAudio || audioProgress < 100}
-                  className="flex-1"
-                >
-                  {isPlaying ? (
-                    <>
-                      <Pause className="mr-2 h-4 w-4" />
-                      Pause
-                    </>
-                  ) : (
-                    <>
-                      <Play className="mr-2 h-4 w-4" />
-                      Play
-                    </>
-                  )}
-                </Button>
-              </div>
-            </div>
+          {/* Generation Progress */}
+          <div className="mt-4">
+            <span className="text-sm font-medium">Generation Progress</span>
+            {audioProgress > 0 && (
+              <span className="text-xs text-muted-foreground ml-2">
+                {audioProgress}%
+              </span>
+            )}
+            <Progress value={audioProgress} className="h-2 mt-1" />
           </div>
         </div>
-      )}
+
+        <div className="flex gap-2 mt-4">
+          <Button
+            onClick={handleGenerateAudio}
+            disabled={isGeneratingAudio || !pdfText}
+            className="flex-1"
+          >
+            {isGeneratingAudio ? (
+              <>
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                Generating...
+              </>
+            ) : (
+              <>Generate Audio</>
+            )}
+          </Button>
+          <Button
+            variant={isPlaying ? "destructive" : "outline"}
+            onClick={togglePlayPause}
+            disabled={isGeneratingAudio || audioProgress < 100}
+            className="flex-1"
+          >
+            {isPlaying ? (
+              <>
+                <Pause className="mr-2 h-4 w-4" />
+                Pause
+              </>
+            ) : (
+              <>
+                <Play className="mr-2 h-4 w-4" />
+                Play
+              </>
+            )}
+          </Button>
+        </div>
+      </div>
     </div>
   );
 }
