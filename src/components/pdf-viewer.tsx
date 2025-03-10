@@ -386,7 +386,7 @@ export function PdfViewer() {
               </div>
 
               {/* Search Controls */}
-              <div className="flex items-center gap-1">
+              {/* <div className="flex items-center gap-1">
                 <div className="relative">
                   <Search className="absolute left-2 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                   <Input
@@ -436,7 +436,7 @@ export function PdfViewer() {
                     </Button>
                   </>
                 )}
-              </div>
+              </div> */}
             </div>
 
             {/* Main PDF Display */}
@@ -445,16 +445,9 @@ export function PdfViewer() {
                 "flex-1 flex justify-center bg-muted/30",
                 isLoading ? "items-center" : "items-start"
               )}
-              style={{ overflow: "hidden" }} // No scrolling
+              style={{ overflow: "scroll" }} // No scrolling
             >
-              {isLoading ? (
-                <div className="flex flex-col items-center gap-2">
-                  <Loader2 className="h-8 w-8 animate-spin text-primary" />
-                  <p className="text-sm text-muted-foreground">
-                    Loading PDF...
-                  </p>
-                </div>
-              ) : docUrl ? (
+              {docUrl ? (
                 <Document
                   file={docUrl}
                   onLoadSuccess={onDocumentLoadSuccess}
@@ -480,7 +473,7 @@ export function PdfViewer() {
       </div>
 
       {/* RIGHT SIDE: Text-to-Speech Panel */}
-      <div className="h-[75%] overflow-hidden p-4 flex flex-col max-w-[45%] w-full">
+      <div className="h-[75%] overflow-hidden px-8 flex flex-col max-w-[45%] w-full">
         {/* Title */}
         <div className="flex items-center mb-4">
           <Volume2 className="mr-2 h-5 w-5 text-primary" />
