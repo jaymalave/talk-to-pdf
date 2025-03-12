@@ -17,15 +17,15 @@ import {
   X,
   FileText,
   Loader2,
-  Search,
-  Volume2,
   Play,
   Pause,
+  Volume2,
 } from "lucide-react";
 import { VoiceSelector } from "@/components/voice-selector";
 import { AudioControls } from "@/components/audio-controls";
 import "react-pdf/dist/esm/Page/TextLayer.css";
 import "react-pdf/dist/esm/Page/AnnotationLayer.css";
+import * as PlayHT from "playht";
 
 // If you have pdf.worker.js in /public:
 pdfjs.GlobalWorkerOptions.workerSrc = "/pdf.worker.js";
@@ -38,6 +38,7 @@ export function PdfViewer() {
   const [scale, setScale] = useState<number>(1.0);
   const [isLoading, setIsLoading] = useState<boolean>(false);
   const [pdfText, setPdfText] = useState<string>("");
+  const [pageTexts, setPageTexts] = useState<string[]>([]);
   const [searchText, setSearchText] = useState<string>("");
   const [searchResults, setSearchResults] = useState<any[]>([]);
   const [currentSearchIndex, setCurrentSearchIndex] = useState<number>(-1);
@@ -45,8 +46,12 @@ export function PdfViewer() {
   const [isGeneratingAudio, setIsGeneratingAudio] = useState<boolean>(false);
   const [audioProgress, setAudioProgress] = useState<number>(0);
   const [isPlaying, setIsPlaying] = useState<boolean>(false);
+  const [audio, setAudio] = useState<HTMLAudioElement | null>(null);
   const [pdfDocument, setPdfDocument] = useState<pdfjs.PDFDocumentProxy | null>(
     null
+  );
+  const [selectedVoice, setSelectedVoice] = useState<string>(
+    "s3://voice-cloning-zero-shot/801a663f-efd0-4254-98d0-5c175514c3e8/jennifer/manifest.json"
   );
 
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -64,6 +69,16 @@ export function PdfViewer() {
     };
   }, [file]);
 
+  // When the page changes, stop any playing audio.
+  useEffect(() => {
+    if (audio) {
+      audio.pause();
+      setIsPlaying(false);
+      setAudio(null);
+      setAudioProgress(0);
+    }
+  }, [pageNumber]);
+
   // ---------------- PDF Handlers ----------------
   function onDocumentLoadSuccess(document: pdfjs.PDFDocumentProxy) {
     try {
@@ -73,7 +88,7 @@ export function PdfViewer() {
       setIsLoading(false);
       setPdfDocument(document);
 
-      // Optionally extract full text
+      // Extract full text and per-page text
       extractTextFromPdf(document, document.numPages);
     } catch (error) {
       console.error("Error loading PDF:", error);
@@ -100,15 +115,18 @@ export function PdfViewer() {
   ) {
     try {
       let fullText = "";
+      const texts: string[] = [];
       for (let i = 1; i <= totalPages; i++) {
         const page = await pdfDoc.getPage(i);
         const textContent = await page.getTextContent();
         const pageText = textContent.items
           .map((item: any) => item.str)
           .join(" ");
+        texts.push(pageText);
         fullText += pageText + `\n\n--- Page ${i} ---\n\n`;
       }
       setPdfText(fullText);
+      setPageTexts(texts);
       console.log("Extracted PDF text:", fullText);
     } catch (error) {
       console.error("Error extracting text from PDF:", error);
@@ -122,11 +140,17 @@ export function PdfViewer() {
       setIsLoading(true);
       setFile(files[0]);
 
-      // Reset search and text
+      // Reset search, text and audio
       setSearchText("");
       setSearchResults([]);
       setCurrentSearchIndex(-1);
       setPdfText("");
+      setPageTexts([]);
+      if (audio) {
+        audio.pause();
+        setIsPlaying(false);
+        setAudio(null);
+      }
     }
   }
 
@@ -137,11 +161,17 @@ export function PdfViewer() {
       setIsLoading(true);
       setFile(event.dataTransfer.files[0]);
 
-      // Reset search and text
+      // Reset search, text and audio
       setSearchText("");
       setSearchResults([]);
       setCurrentSearchIndex(-1);
       setPdfText("");
+      setPageTexts([]);
+      if (audio) {
+        audio.pause();
+        setIsPlaying(false);
+        setAudio(null);
+      }
     }
   }
 
@@ -155,10 +185,16 @@ export function PdfViewer() {
     setNumPages(0);
     setPageNumber(1);
     setPdfText("");
+    setPageTexts([]);
     setSearchText("");
     setSearchResults([]);
     setCurrentSearchIndex(-1);
     setPdfDocument(null);
+    if (audio) {
+      audio.pause();
+      setIsPlaying(false);
+      setAudio(null);
+    }
     if (fileInputRef.current) {
       fileInputRef.current.value = "";
     }
@@ -237,35 +273,141 @@ export function PdfViewer() {
   }
 
   // -------------- Text-to-Speech -------------
-  function handleGenerateAudio() {
-    if (!pdfText) {
-      toast.error("Please upload a PDF first.");
+  // Implementation of PlayHT API to generate audio for given text
+  const fetchTTS = async (text: string) => {
+    setAudioProgress(10);
+    try {
+      // Check if we have text to generate audio for
+      if (!text || text.trim() === "") {
+        throw new Error("No text available to generate audio");
+      }
+
+      // Prepare the API request payload
+      const payload = {
+        text: text,
+        voice: selectedVoice, // Use the selected voice
+        output_format: "mp3",
+        voice_engine: "PlayDialog",
+      };
+
+      setAudioProgress(20);
+
+      // Client-side code
+      try {
+        // Call your own proxy endpoint instead of Play.HT directly
+        const response = await fetch("/api/fetch-tts", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify(payload),
+        });
+
+        if (!response.ok) {
+          throw new Error(`Error: ${response.status}`);
+        }
+
+        // Create a blob from the audio stream
+        const blob = await response.blob();
+
+        // Create a URL for the blob
+        const audioUrl = URL.createObjectURL(blob);
+
+        // Play the audio or set it as the source of an audio element
+        const audioElement = new Audio(audioUrl);
+
+        setAudioProgress(100);
+        toast.success("Audio generated successfully");
+        audioElement.play();
+
+        // Alternatively, update an existing audio element
+        // document.getElementById('audioPlayer').src = audioUrl;
+      } catch (error) {
+        console.error("Failed to convert text to speech:", error);
+      }
+    } catch (error) {
+      console.error("Error generating audio with PlayHT:", error);
+      toast.error("Failed to generate audio", {
+        description:
+          error instanceof Error ? error.message : "Unknown error occurred",
+      });
+      setAudioProgress(0);
+      throw error;
+    }
+  };
+
+  // // Generate audio for the current page's text and play it.
+  // async function handleGenerateAudioForCurrentPage() {
+  //   if (!pageTexts[pageNumber - 1]) {
+  //     toast.error("No text available for this page.");
+  //     return;
+  //   }
+
+  //   if (audio) {
+  //     audio.pause();
+  //     setIsPlaying(false);
+  //     setAudio(null);
+  //   }
+
+  //   setIsGeneratingAudio(true);
+  //   setAudioProgress(0);
+
+  //   try {
+  //     const audioUrl = await fetchTTS(pageTexts[pageNumber - 1]);
+  //     const newAudio = new Audio(audioUrl);
+
+  //     // Set up event listeners
+  //     newAudio.onended = () => setIsPlaying(false);
+  //     newAudio.onpause = () => setIsPlaying(false);
+  //     newAudio.onplay = () => setIsPlaying(true);
+
+  //     // Store the audio element
+  //     setAudio(newAudio);
+
+  //     // Start playing
+  //     await newAudio.play();
+  //     setIsPlaying(true);
+  //     toast.success(`Playing audio for page ${pageNumber}`);
+  //   } catch (error) {
+  //     console.error("Error generating or playing audio:", error);
+  //     toast.error("Error generating audio.");
+  //   } finally {
+  //     setIsGeneratingAudio(false);
+  //   }
+  // }
+
+  const handleGenerateAudioForCurrentPage = async () => {
+    if (!pageTexts[pageNumber - 1]) {
+      toast.error("No text available for this page.");
       return;
     }
-    setIsGeneratingAudio(true);
-    setAudioProgress(0);
-
-    const interval = setInterval(() => {
-      setAudioProgress((prev) => {
-        if (prev >= 100) {
-          clearInterval(interval);
-          setIsGeneratingAudio(false);
-          setIsPlaying(true);
-          toast.success("Audio generated");
-          return 100;
-        }
-        return prev + 5;
-      });
-    }, 200);
-  }
+    try {
+      await fetchTTS(pageTexts[pageNumber - 1]);
+    } catch (error) {
+      console.error("Error generating audio:", error);
+      toast.error("Error generating audio.");
+    } finally {
+      setIsGeneratingAudio(false);
+    }
+  };
 
   function togglePlayPause() {
-    setIsPlaying(!isPlaying);
+    if (audio) {
+      if (isPlaying) {
+        audio.pause();
+        setIsPlaying(false);
+      } else {
+        audio.play();
+        setIsPlaying(true);
+      }
+    }
   }
 
-  // ---------------------------------------------
-  // LAYOUT: horizontal, no scrolling
-  // ---------------------------------------------
+  // Handle voice selection from the VoiceSelector component
+  const handleVoiceChange = (voice: string) => {
+    setSelectedVoice(voice);
+  };
+
   return (
     <div className="flex w-screen h-screen overflow-hidden">
       {/* LEFT SIDE: PDF Viewer */}
@@ -384,59 +526,6 @@ export function PdfViewer() {
                   <ChevronRight className="h-4 w-4" />
                 </Button>
               </div>
-
-              {/* Search Controls */}
-              {/* <div className="flex items-center gap-1">
-                <div className="relative">
-                  <Search className="absolute left-2 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                  <Input
-                    type="text"
-                    placeholder="Search..."
-                    value={searchText}
-                    onChange={(e) => setSearchText(e.target.value)}
-                    onKeyDown={(e) => e.key === "Enter" && handleSearch()}
-                    className="pl-8 h-8 w-[150px] sm:w-[200px]"
-                  />
-                </div>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={handleSearch}
-                  disabled={isSearching || !searchText.trim()}
-                  className="h-8"
-                >
-                  {isSearching ? (
-                    <Loader2 className="h-3 w-3 animate-spin" />
-                  ) : (
-                    "Find"
-                  )}
-                </Button>
-                {searchResults.length > 0 && (
-                  <>
-                    <Button
-                      variant="outline"
-                      size="icon"
-                      onClick={() => navigateSearch("prev")}
-                      className="h-8 w-8"
-                      aria-label="Previous result"
-                    >
-                      <ChevronLeft className="h-3 w-3" />
-                    </Button>
-                    <span className="text-xs">
-                      {currentSearchIndex + 1}/{searchResults.length}
-                    </span>
-                    <Button
-                      variant="outline"
-                      size="icon"
-                      onClick={() => navigateSearch("next")}
-                      className="h-8 w-8"
-                      aria-label="Next result"
-                    >
-                      <ChevronRight className="h-3 w-3" />
-                    </Button>
-                  </>
-                )}
-              </div> */}
             </div>
 
             {/* Main PDF Display */}
@@ -499,8 +588,8 @@ export function PdfViewer() {
 
         <div className="flex gap-2 mt-4">
           <Button
-            onClick={handleGenerateAudio}
-            disabled={isGeneratingAudio || !pdfText}
+            onClick={handleGenerateAudioForCurrentPage}
+            disabled={isGeneratingAudio || !pageTexts[pageNumber - 1]}
             className="flex-1"
           >
             {isGeneratingAudio ? (
@@ -509,13 +598,13 @@ export function PdfViewer() {
                 Generating...
               </>
             ) : (
-              <>Generate Audio</>
+              <>Generate Audio for Page {pageNumber}</>
             )}
           </Button>
           <Button
             variant={isPlaying ? "destructive" : "outline"}
             onClick={togglePlayPause}
-            disabled={isGeneratingAudio || audioProgress < 100}
+            disabled={isGeneratingAudio || !audio}
             className="flex-1"
           >
             {isPlaying ? (
