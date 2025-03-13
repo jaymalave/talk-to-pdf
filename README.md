@@ -1,6 +1,12 @@
+
+
 # Project Name
 
-A NextJS-based application that leverages MongoDB, Tailwind CSS, shadcn UI components, and React PDF for an efficient and modern web experience.
+AutoPDF - Transform the way you read, listen, and interact with PDFs.
+
+ https://autopdf.jaymalve.dev
+
+A NextJS-based application that leverages MongoDB, Tailwind CSS, shadcn UI components, and React PDF for an efficient and modern web PDF experience.
 
 ## Table of Contents
 
