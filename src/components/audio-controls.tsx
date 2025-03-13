@@ -4,10 +4,17 @@ import { useState } from "react";
 import { Slider } from "@/components/ui/slider";
 import { Label } from "@/components/ui/label";
 
-export function AudioControls() {
-  const [speed, setSpeed] = useState<number>(1);
-  const [temperature, setTemperature] = useState<number>(0.7);
-
+export function AudioControls({
+  speed,
+  setSpeed,
+  temperature,
+  setTemperature,
+}: {
+  speed: number;
+  setSpeed: (speed: number) => void;
+  temperature: number;
+  setTemperature: (temperature: number) => void;
+}) {
   return (
     <div className="space-y-4">
       <div className="space-y-2">
@@ -21,8 +28,8 @@ export function AudioControls() {
         </div>
         <Slider
           id="speed-slider"
-          min={0.5}
-          max={2}
+          min={0.1}
+          max={5}
           step={0.1}
           value={[speed]}
           onValueChange={(value) => setSpeed(value[0])}
@@ -41,7 +48,7 @@ export function AudioControls() {
         <Slider
           id="temperature-slider"
           min={0}
-          max={1}
+          max={2}
           step={0.1}
           value={[temperature]}
           onValueChange={(value) => setTemperature(value[0])}

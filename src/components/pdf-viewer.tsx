@@ -40,11 +40,6 @@ export function PdfViewer() {
   const [pdfText, setPdfText] = useState<string>("");
   const [pageTexts, setPageTexts] = useState<string[]>([]);
 
-  const [searchText, setSearchText] = useState<string>("");
-  const [searchResults, setSearchResults] = useState<any[]>([]);
-  const [currentSearchIndex, setCurrentSearchIndex] = useState<number>(-1);
-  const [isSearching, setIsSearching] = useState<boolean>(false);
-
   // Audio-related state
   const [isGeneratingAudio, setIsGeneratingAudio] = useState<boolean>(false);
   const [audioProgress, setAudioProgress] = useState<number>(0);
@@ -53,6 +48,9 @@ export function PdfViewer() {
   const [pdfDocument, setPdfDocument] = useState<pdfjs.PDFDocumentProxy | null>(
     null
   );
+
+  const [speed, setSpeed] = useState<number>(1);
+  const [temperature, setTemperature] = useState<number>(0.7);
 
   // Voice (if you want to allow switching voices)
   const [selectedVoice, setSelectedVoice] = useState<string>(
@@ -191,9 +189,7 @@ export function PdfViewer() {
       setFile(files[0]);
 
       // Reset search, text, and audio
-      setSearchText("");
-      setSearchResults([]);
-      setCurrentSearchIndex(-1);
+
       setPdfText("");
       setPageTexts([]);
       stopAudio();
@@ -208,9 +204,7 @@ export function PdfViewer() {
       setFile(event.dataTransfer.files[0]);
 
       // Reset search, text and audio
-      setSearchText("");
-      setSearchResults([]);
-      setCurrentSearchIndex(-1);
+
       setPdfText("");
       setPageTexts([]);
       stopAudio();
@@ -228,9 +222,7 @@ export function PdfViewer() {
     setPageNumber(1);
     setPdfText("");
     setPageTexts([]);
-    setSearchText("");
-    setSearchResults([]);
-    setCurrentSearchIndex(-1);
+
     setPdfDocument(null);
     stopAudio();
     if (fileInputRef.current) {
@@ -305,6 +297,8 @@ export function PdfViewer() {
         text,
         voice: selectedVoice,
         model: "PlayDialog",
+        speed,
+        temperature,
       };
 
       // setAudioProgress(25);
@@ -573,9 +567,17 @@ export function PdfViewer() {
         </div>
 
         {/* Voice Selector & Audio Controls (optional components) */}
-        <VoiceSelector />
+        <VoiceSelector
+          selectedVoice={selectedVoice}
+          setSelectedVoice={setSelectedVoice}
+        />
         <div className="flex flex-col gap-2 mt-4">
-          <AudioControls />
+          <AudioControls
+            speed={speed}
+            setSpeed={setSpeed}
+            temperature={temperature}
+            setTemperature={setTemperature}
+          />
 
           {/* Generation Progress */}
           <div className="mt-4">

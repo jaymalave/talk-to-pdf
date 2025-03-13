@@ -49,8 +49,13 @@ const voices = [
   },
 ];
 
-export function VoiceSelector() {
-  const [selectedVoice, setSelectedVoice] = useState<string>(voices[0].value);
+export function VoiceSelector({
+  selectedVoice,
+  setSelectedVoice,
+}: {
+  selectedVoice: string;
+  setSelectedVoice: (value: string) => void;
+}) {
   const [audioSample, setAudioSample] = useState<string | null>(null);
 
   const handleVoiceChange = (value: string) => {

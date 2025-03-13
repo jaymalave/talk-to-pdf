@@ -9,7 +9,7 @@ export async function POST(req: NextRequest) {
   }
 
   try {
-    const { text, voice, model } = await req.json();
+    const { text, voice, model, speed, temperature } = await req.json();
 
     // Validate required parameters
     if (!text || !voice || !model) {
@@ -28,6 +28,8 @@ export async function POST(req: NextRequest) {
       model,
       quality: "high",
       sample_rate: 24000,
+      speed,
+      temperature,
     };
 
     const options = {
