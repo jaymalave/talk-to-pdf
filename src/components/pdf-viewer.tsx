@@ -25,7 +25,6 @@ import { VoiceSelector } from "@/components/voice-selector";
 import { AudioControls } from "@/components/audio-controls";
 import "react-pdf/dist/esm/Page/TextLayer.css";
 import "react-pdf/dist/esm/Page/AnnotationLayer.css";
-import * as PlayHT from "playht";
 
 // If you have pdf.worker.js in /public:
 pdfjs.GlobalWorkerOptions.workerSrc = "/pdf.worker.js";
@@ -37,24 +36,32 @@ export function PdfViewer() {
   const [pageNumber, setPageNumber] = useState<number>(1);
   const [scale, setScale] = useState<number>(1.0);
   const [isLoading, setIsLoading] = useState<boolean>(false);
+
   const [pdfText, setPdfText] = useState<string>("");
   const [pageTexts, setPageTexts] = useState<string[]>([]);
+
   const [searchText, setSearchText] = useState<string>("");
   const [searchResults, setSearchResults] = useState<any[]>([]);
   const [currentSearchIndex, setCurrentSearchIndex] = useState<number>(-1);
   const [isSearching, setIsSearching] = useState<boolean>(false);
+
+  // Audio-related state
   const [isGeneratingAudio, setIsGeneratingAudio] = useState<boolean>(false);
   const [audioProgress, setAudioProgress] = useState<number>(0);
   const [isPlaying, setIsPlaying] = useState<boolean>(false);
-  const [audio, setAudio] = useState<HTMLAudioElement | null>(null);
+  const [audioUrl, setAudioUrl] = useState<string | null>(null);
   const [pdfDocument, setPdfDocument] = useState<pdfjs.PDFDocumentProxy | null>(
     null
   );
+
+  // Voice (if you want to allow switching voices)
   const [selectedVoice, setSelectedVoice] = useState<string>(
     "s3://voice-cloning-zero-shot/801a663f-efd0-4254-98d0-5c175514c3e8/jennifer/manifest.json"
   );
 
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const audioRef = useRef<HTMLAudioElement | null>(null);
+  const abortControllerRef = useRef<AbortController | null>(null);
 
   // Generate/Revoke the object URL whenever `file` changes
   useEffect(() => {
@@ -69,14 +76,56 @@ export function PdfViewer() {
     };
   }, [file]);
 
-  // When the page changes, stop any playing audio.
+  // Create audio element once on component mount
   useEffect(() => {
-    if (audio) {
-      audio.pause();
+    const audio = new Audio();
+
+    // Set up audio event listeners
+    audio.addEventListener("play", () => setIsPlaying(true));
+    audio.addEventListener("pause", () => setIsPlaying(false));
+    audio.addEventListener("ended", () => {
       setIsPlaying(false);
-      setAudio(null);
-      setAudioProgress(0);
-    }
+      setAudioProgress(100);
+    });
+
+    // Update progress as audio plays
+    audio.addEventListener("timeupdate", () => {
+      if (audio.duration) {
+        const progress = (audio.currentTime / audio.duration) * 100;
+        setAudioProgress(Math.round(progress));
+      }
+    });
+
+    // Add error handling
+    audio.addEventListener("error", (e) => {
+      console.error("Audio playback error:", e);
+      toast.error("Audio playback error", {
+        description: "There was a problem playing the audio. Please try again.",
+      });
+      setIsPlaying(false);
+    });
+
+    audioRef.current = audio;
+
+    // Cleanup on component unmount
+    return () => {
+      if (audioRef.current) {
+        audioRef.current.pause();
+        audioRef.current.src = "";
+        audioRef.current.load();
+      }
+      if (audioUrl) {
+        URL.revokeObjectURL(audioUrl);
+      }
+      if (abortControllerRef.current) {
+        abortControllerRef.current.abort();
+      }
+    };
+  }, []);
+
+  // When the page changes, stop any playing audio, reset progress
+  useEffect(() => {
+    stopAudio();
   }, [pageNumber]);
 
   // ---------------- PDF Handlers ----------------
@@ -123,11 +172,12 @@ export function PdfViewer() {
           .map((item: any) => item.str)
           .join(" ");
         texts.push(pageText);
+        // Add page separators to full text
         fullText += pageText + `\n\n--- Page ${i} ---\n\n`;
       }
       setPdfText(fullText);
       setPageTexts(texts);
-      console.log("Extracted PDF text:", fullText);
+      console.log("Extracted PDF text successfully");
     } catch (error) {
       console.error("Error extracting text from PDF:", error);
     }
@@ -140,17 +190,13 @@ export function PdfViewer() {
       setIsLoading(true);
       setFile(files[0]);
 
-      // Reset search, text and audio
+      // Reset search, text, and audio
       setSearchText("");
       setSearchResults([]);
       setCurrentSearchIndex(-1);
       setPdfText("");
       setPageTexts([]);
-      if (audio) {
-        audio.pause();
-        setIsPlaying(false);
-        setAudio(null);
-      }
+      stopAudio();
     }
   }
 
@@ -167,11 +213,7 @@ export function PdfViewer() {
       setCurrentSearchIndex(-1);
       setPdfText("");
       setPageTexts([]);
-      if (audio) {
-        audio.pause();
-        setIsPlaying(false);
-        setAudio(null);
-      }
+      stopAudio();
     }
   }
 
@@ -190,11 +232,7 @@ export function PdfViewer() {
     setSearchResults([]);
     setCurrentSearchIndex(-1);
     setPdfDocument(null);
-    if (audio) {
-      audio.pause();
-      setIsPlaying(false);
-      setAudio(null);
-    }
+    stopAudio();
     if (fileInputRef.current) {
       fileInputRef.current.value = "";
     }
@@ -221,185 +259,148 @@ export function PdfViewer() {
     });
   }
 
-  // ---------------- Searching ----------------
-  async function handleSearch() {
-    if (!searchText.trim() || !pdfDocument) return;
-    setIsSearching(true);
-
-    try {
-      const results: any[] = [];
-      for (let i = 1; i <= numPages; i++) {
-        const page = await pdfDocument.getPage(i);
-        const textContent = await page.getTextContent();
-        const pageText = textContent.items
-          .map((item: any) => item.str)
-          .join(" ");
-        if (pageText.toLowerCase().includes(searchText.toLowerCase())) {
-          results.push({
-            pageNumber: i,
-            text: pageText,
-          });
-        }
-      }
-
-      setSearchResults(results);
-
-      if (results.length > 0) {
-        setCurrentSearchIndex(0);
-        setPageNumber(results[0].pageNumber);
-        toast.success(`Found ${results.length} matches for "${searchText}"`);
-      } else {
-        toast.error(`No matches found for "${searchText}"`);
-      }
-    } catch (error) {
-      console.error("Error searching PDF:", error);
-      toast.error("There was a problem searching the document.");
-    } finally {
-      setIsSearching(false);
+  // ---------------- Audio Helpers ----------------
+  // Stop current audio + reset states
+  function stopAudio() {
+    // Abort any in-progress fetch
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort();
+      abortControllerRef.current = null;
     }
+
+    // Stop audio playback
+    if (audioRef.current) {
+      audioRef.current.pause();
+      audioRef.current.currentTime = 0;
+    }
+
+    // Clean up audio URL
+    if (audioUrl) {
+      URL.revokeObjectURL(audioUrl);
+      setAudioUrl(null);
+    }
+
+    setIsPlaying(false);
+    setAudioProgress(0);
+    setIsGeneratingAudio(false);
   }
 
-  function navigateSearch(direction: "next" | "prev") {
-    if (searchResults.length === 0) return;
-    let newIndex = currentSearchIndex;
-    if (direction === "next") {
-      newIndex = (currentSearchIndex + 1) % searchResults.length;
-    } else {
-      newIndex =
-        (currentSearchIndex - 1 + searchResults.length) % searchResults.length;
-    }
-    setCurrentSearchIndex(newIndex);
-    setPageNumber(searchResults[newIndex].pageNumber);
-  }
-
-  // -------------- Text-to-Speech -------------
-  // Implementation of PlayHT API to generate audio for given text
   const fetchTTS = async (text: string) => {
-    setAudioProgress(10);
+    // Show a clear status to the user
+    setIsGeneratingAudio(true);
+    setAudioProgress(0);
+
     try {
-      // Check if we have text to generate audio for
       if (!text || text.trim() === "") {
         throw new Error("No text available to generate audio");
       }
 
+      // Stop any existing audio and abort ongoing fetches
+      stopAudio();
+
+      // Create a new abort controller
+      const controller = new AbortController();
+      abortControllerRef.current = controller;
+
       // Prepare the API request payload
       const payload = {
-        text: text,
-        voice: selectedVoice, // Use the selected voice
-        output_format: "mp3",
-        voice_engine: "PlayDialog",
+        text,
+        voice: selectedVoice,
+        model: "PlayDialog",
       };
 
-      setAudioProgress(20);
+      setAudioProgress(25);
 
-      // Client-side code
-      try {
-        // Call your own proxy endpoint instead of Play.HT directly
-        const response = await fetch("/api/fetch-tts", {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify(payload),
-        });
-
-        if (!response.ok) {
-          throw new Error(`Error: ${response.status}`);
-        }
-
-        // Create a blob from the audio stream
-        const blob = await response.blob();
-
-        // Create a URL for the blob
-        const audioUrl = URL.createObjectURL(blob);
-
-        // Play the audio or set it as the source of an audio element
-        const audioElement = new Audio(audioUrl);
-
-        setAudioProgress(100);
-        toast.success("Audio generated successfully");
-        audioElement.play();
-
-        // Alternatively, update an existing audio element
-        // document.getElementById('audioPlayer').src = audioUrl;
-      } catch (error) {
-        console.error("Failed to convert text to speech:", error);
-      }
-    } catch (error) {
-      console.error("Error generating audio with PlayHT:", error);
-      toast.error("Failed to generate audio", {
-        description:
-          error instanceof Error ? error.message : "Unknown error occurred",
+      // Call the API route with streaming response
+      const response = await fetch("/api/fetch-tts", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(payload),
+        signal: controller.signal,
       });
-      setAudioProgress(0);
-      throw error;
-    }
-  };
 
-  // // Generate audio for the current page's text and play it.
-  // async function handleGenerateAudioForCurrentPage() {
-  //   if (!pageTexts[pageNumber - 1]) {
-  //     toast.error("No text available for this page.");
-  //     return;
-  //   }
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(`Error: ${response.status} - ${errorText}`);
+      }
 
-  //   if (audio) {
-  //     audio.pause();
-  //     setIsPlaying(false);
-  //     setAudio(null);
-  //   }
+      setAudioProgress(50);
 
-  //   setIsGeneratingAudio(true);
-  //   setAudioProgress(0);
+      // Create a blob from the audio stream
+      const blob = await response.blob();
 
-  //   try {
-  //     const audioUrl = await fetchTTS(pageTexts[pageNumber - 1]);
-  //     const newAudio = new Audio(audioUrl);
+      // Create a new object URL and set it to the audio element
+      const url = URL.createObjectURL(blob);
 
-  //     // Set up event listeners
-  //     newAudio.onended = () => setIsPlaying(false);
-  //     newAudio.onpause = () => setIsPlaying(false);
-  //     newAudio.onplay = () => setIsPlaying(true);
+      // Clean up any previous URL
+      if (audioUrl) {
+        URL.revokeObjectURL(audioUrl);
+      }
 
-  //     // Store the audio element
-  //     setAudio(newAudio);
+      // Set the new URL
+      setAudioUrl(url);
 
-  //     // Start playing
-  //     await newAudio.play();
-  //     setIsPlaying(true);
-  //     toast.success(`Playing audio for page ${pageNumber}`);
-  //   } catch (error) {
-  //     console.error("Error generating or playing audio:", error);
-  //     toast.error("Error generating audio.");
-  //   } finally {
-  //     setIsGeneratingAudio(false);
-  //   }
-  // }
+      // Update the audio element's source
+      if (audioRef.current) {
+        audioRef.current.src = url;
+        audioRef.current.load();
 
-  const handleGenerateAudioForCurrentPage = async () => {
-    if (!pageTexts[pageNumber - 1]) {
-      toast.error("No text available for this page.");
-      return;
-    }
-    try {
-      await fetchTTS(pageTexts[pageNumber - 1]);
-    } catch (error) {
-      console.error("Error generating audio:", error);
-      toast.error("Error generating audio.");
+        // Start playing automatically
+        try {
+          await audioRef.current.play();
+          setIsPlaying(true);
+        } catch (playError) {
+          console.error("Error playing audio:", playError);
+          toast.error("Error starting playback");
+        }
+      }
+
+      setAudioProgress(100);
+      toast.success("Audio generated successfully");
+    } catch (error: any) {
+      if (error.name === "AbortError") {
+        console.log("Audio generation fetch aborted.");
+      } else {
+        console.error("Error generating audio:", error);
+        toast.error("Failed to generate audio", {
+          description: error.message || "Unknown error occurred",
+        });
+      }
     } finally {
       setIsGeneratingAudio(false);
     }
   };
 
+  const handleGenerateAudioForCurrentPage = async () => {
+    // Stop any ongoing audio or fetch
+    stopAudio();
+
+    if (!pageTexts[pageNumber - 1]) {
+      toast.error("No text available for this page.");
+      return;
+    }
+
+    try {
+      await fetchTTS(pageTexts[pageNumber - 1]);
+    } catch (error) {
+      console.error("Error generating audio:", error);
+      toast.error("Error generating audio.");
+    }
+  };
+
+  // Play/Pause button
   function togglePlayPause() {
-    if (audio) {
-      if (isPlaying) {
-        audio.pause();
-        setIsPlaying(false);
-      } else {
-        audio.play();
-        setIsPlaying(true);
-      }
+    if (!audioRef.current || !audioUrl) return;
+
+    if (isPlaying) {
+      audioRef.current.pause();
+    } else {
+      audioRef.current.play().catch((err) => {
+        console.error("Error playing audio:", err);
+        toast.error("Could not play audio");
+      });
     }
   }
 
@@ -534,7 +535,7 @@ export function PdfViewer() {
                 "flex-1 flex justify-center bg-muted/30",
                 isLoading ? "items-center" : "items-start"
               )}
-              style={{ overflow: "scroll" }} // No scrolling
+              style={{ overflow: "scroll" }} // scrollable
             >
               {docUrl ? (
                 <Document
@@ -569,7 +570,7 @@ export function PdfViewer() {
           <h3 className="text-lg font-medium">Text-to-Speech</h3>
         </div>
 
-        {/* Voice Selector & Audio Controls */}
+        {/* Voice Selector & Audio Controls (optional components) */}
         <VoiceSelector />
         <div className="flex flex-col gap-2 mt-4">
           <AudioControls />
@@ -586,6 +587,10 @@ export function PdfViewer() {
           </div>
         </div>
 
+        {/* Hidden audio element for handling the audio */}
+        <audio ref={audioRef} style={{ display: "none" }} />
+
+        {/* Buttons: Generate & Play/Pause */}
         <div className="flex gap-2 mt-4">
           <Button
             onClick={handleGenerateAudioForCurrentPage}
@@ -604,7 +609,7 @@ export function PdfViewer() {
           <Button
             variant={isPlaying ? "destructive" : "outline"}
             onClick={togglePlayPause}
-            disabled={isGeneratingAudio || !audio}
+            disabled={!audioUrl} // only enable if we actually have audio
             className="flex-1"
           >
             {isPlaying ? (

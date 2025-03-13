@@ -1,57 +1,114 @@
-import { NextApiRequest } from "next";
+import { NextRequest, NextResponse } from "next/server";
 
-import { NextApiResponse } from "next";
+export async function POST(req: NextRequest) {
+  if (req.method !== "POST") {
+    return new NextResponse(
+      JSON.stringify({ error: `Method ${req.method} Not Allowed` }),
+      { status: 405, headers: { "Content-Type": "application/json" } }
+    );
+  }
 
-// In your Next.js API route (e.g., pages/api/tts.js or app/api/tts/route.js)
-export async function POST(req: NextApiRequest, res: NextApiResponse) {
-  console.log("req.body for tts", req.body);
-  if (req.method === "POST") {
-    try {
-      // You can either use the payload from the request or define it here
-      const payload = req.body || {
-        voice:
-          "s3://voice-cloning-zero-shot/d9ff78ba-d016-47f6-b0ef-dd630f59414e/female-cs/manifest.json",
-        output_format: "mp3",
-        voice_engine: "PlayDialog",
-      };
+  try {
+    const { text, voice, model } = await req.json();
 
-      const options = {
-        method: "POST",
-        headers: {
-          accept: "audio/mpeg",
-          "content-type": "application/json",
-          Authorization: `${process.env.PLAYHT_API_KEY}`,
-          "X-USER-ID": process.env.PLAYHT_USER_ID || "",
-        },
-        body: JSON.stringify(payload),
-      };
-
-      const response = await fetch(
-        "https://api.play.ht/api/v2/tts/stream",
-        options
+    // Validate required parameters
+    if (!text || !voice || !model) {
+      return new NextResponse(
+        JSON.stringify({
+          error: "Missing required parameters: text, voice, or model",
+        }),
+        { status: 400, headers: { "Content-Type": "application/json" } }
       );
-
-      if (!response.ok) {
-        const errorData = await response.text();
-        throw new Error(`API error: ${response.status} - ${errorData}`);
-      }
-
-      res.setHeader("Content-Type", "audio/mpeg");
-
-      // Read the stream as a Blob
-      const audioBlob = await response.blob();
-      const audioBuffer = Buffer.from(await audioBlob.arrayBuffer());
-
-      // Send the audio buffer to the response
-      res.send(audioBuffer);
-    } catch (error) {
-      console.error("Error:", error);
-      res.status(500).json({
-        error: (error as Error).message || "Failed to generate audio",
-      });
     }
-  } else {
-    res.setHeader("Allow", ["POST"]);
-    res.status(405).end(`Method ${req.method} Not Allowed`);
+
+    // Following Play.AI documentation for PlayDialog model
+    const payload = {
+      text,
+      voice,
+      output_format: "mp3",
+      model: "PlayDialog", // Using PlayDialog as specified in docs
+      quality: "high",
+      sample_rate: 24000,
+    };
+
+    const options = {
+      method: "POST",
+      headers: {
+        Accept: "audio/mpeg",
+        "Content-Type": "application/json",
+        Authorization: `ak-c3eaeadb838944cfaec82e41129a71f3`,
+        "X-USER-ID": "5jcbndHqeMg9yRPw95Ti5cVfNus2",
+      },
+      body: JSON.stringify(payload),
+    };
+
+    // Use the correct endpoint from the Play.AI docs
+    const upstreamResponse = await fetch(
+      "https://api.play.ai/api/v1/tts/stream",
+      options
+    );
+
+    if (!upstreamResponse.ok) {
+      const errorData = await upstreamResponse.text();
+      throw new Error(`API error: ${upstreamResponse.status} - ${errorData}`);
+    }
+
+    // Create a transform stream to pipe data from upstream to client
+    const { readable, writable } = new TransformStream();
+    const reader = upstreamResponse.body!.getReader();
+    const writer = writable.getWriter();
+
+    // Process the stream
+    (async () => {
+      try {
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) {
+            await writer.close();
+            break;
+          }
+          await writer.write(value);
+        }
+      } catch (err: any) {
+        console.error("Stream error:", err);
+
+        // Properly handle stream errors
+        if (
+          err.name === "AbortError" ||
+          err.message?.includes("ResponseAborted")
+        ) {
+          console.log("Client aborted the request");
+        } else {
+          console.error("Error processing audio stream:", err);
+        }
+
+        try {
+          await writer.abort(err);
+        } catch (abortErr) {
+          console.error("Error aborting writer:", abortErr);
+        }
+      }
+    })();
+
+    // Return the readable stream to the client
+    return new NextResponse(readable, {
+      status: 200,
+      headers: {
+        "Content-Type": "audio/mpeg",
+        "Transfer-Encoding": "chunked",
+      },
+    });
+  } catch (error: any) {
+    console.error("Error in TTS API route:", error);
+    return new NextResponse(
+      JSON.stringify({
+        error: error.message || "Failed to generate audio",
+        details: error.stack,
+      }),
+      {
+        status: 500,
+        headers: { "Content-Type": "application/json" },
+      }
+    );
   }
 }
