@@ -282,23 +282,21 @@ export function PdfViewer() {
 
     setIsPlaying(false);
     setAudioProgress(0);
-    setIsGeneratingAudio(false);
+    // setIsGeneratingAudio(false);
   }
 
   const fetchTTS = async (text: string) => {
     // Show a clear status to the user
     setIsGeneratingAudio(true);
-    setAudioProgress(0);
+    // setAudioProgress(0);
 
     try {
       if (!text || text.trim() === "") {
         throw new Error("No text available to generate audio");
       }
 
-      // Stop any existing audio and abort ongoing fetches
       stopAudio();
 
-      // Create a new abort controller
       const controller = new AbortController();
       abortControllerRef.current = controller;
 
@@ -309,7 +307,7 @@ export function PdfViewer() {
         model: "PlayDialog",
       };
 
-      setAudioProgress(25);
+      // setAudioProgress(25);
 
       // Call the API route with streaming response
       const response = await fetch("/api/fetch-tts", {
@@ -326,7 +324,7 @@ export function PdfViewer() {
         throw new Error(`Error: ${response.status} - ${errorText}`);
       }
 
-      setAudioProgress(50);
+      // setAudioProgress(50);
 
       // Create a blob from the audio stream
       const blob = await response.blob();
@@ -375,6 +373,7 @@ export function PdfViewer() {
 
   const handleGenerateAudioForCurrentPage = async () => {
     // Stop any ongoing audio or fetch
+    setIsGeneratingAudio(true);
     stopAudio();
 
     if (!pageTexts[pageNumber - 1]) {
@@ -383,10 +382,13 @@ export function PdfViewer() {
     }
 
     try {
+      setIsGeneratingAudio(true);
       await fetchTTS(pageTexts[pageNumber - 1]);
     } catch (error) {
       console.error("Error generating audio:", error);
       toast.error("Error generating audio.");
+    } finally {
+      setIsGeneratingAudio(false);
     }
   };
 
@@ -595,7 +597,7 @@ export function PdfViewer() {
           <Button
             onClick={handleGenerateAudioForCurrentPage}
             disabled={isGeneratingAudio || !pageTexts[pageNumber - 1]}
-            className="flex-1"
+            className="flex-1 cursor-pointer"
           >
             {isGeneratingAudio ? (
               <>

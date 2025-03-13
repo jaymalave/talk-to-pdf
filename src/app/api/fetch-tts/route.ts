@@ -21,12 +21,11 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // Following Play.AI documentation for PlayDialog model
     const payload = {
       text,
       voice,
       output_format: "mp3",
-      model: "PlayDialog", // Using PlayDialog as specified in docs
+      model,
       quality: "high",
       sample_rate: 24000,
     };
