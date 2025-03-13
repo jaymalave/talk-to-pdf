@@ -5,7 +5,6 @@ import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
 import { VoiceSelector } from "./voice-selector";
 
-// Shadcn UI imports for Select (dropdown)
 import {
   Select,
   SelectTrigger,
@@ -14,7 +13,6 @@ import {
   SelectItem,
 } from "@/components/ui/select";
 
-// Shadcn UI imports for Dialog (modal)
 import {
   Dialog,
   DialogTrigger,
@@ -37,39 +35,36 @@ interface AgentChatProps {
 export function AgentChat({ context }: AgentChatProps) {
   const [ws, setWs] = useState<WebSocket | null>(null);
 
-  // Conversation
   const [messages, setMessages] = useState<Message[]>([]);
 
-  // Connection / UI states
   const [isConnecting, setIsConnecting] = useState(false);
+
   const [isListening, setIsListening] = useState(false);
+
   const [interimTranscript, setInterimTranscript] = useState("");
+  const [finalTranscript, setFinalTranscript] = useState("");
+
   const recognitionRef = useRef<any | null>(null);
 
-  // Agent list and selection
   const [agents, setAgents] = useState<any[]>([]);
   const [selectedAgentId, setSelectedAgentId] = useState<string>("");
 
-  // For creating a new agent in the modal
   const [open, setOpen] = useState(false);
   const [agentName, setAgentName] = useState("");
   const [agentDescription, setAgentDescription] = useState("");
   const [agentPrompt, setAgentPrompt] = useState("");
   const [selectedVoice, setSelectedVoice] = useState("");
 
-  // Your Play.ai API key (store in .env if possible)
-  const playAiApiKey =
-    process.env.NEXT_PUBLIC_PLAY_AI_API_KEY || "YOUR_API_KEY";
-
-  // ------------------------- SPEECH RECOGNITION -------------------------
   useEffect(() => {
     const SpeechRecognition =
       (window as any).SpeechRecognition ||
       (window as any).webkitSpeechRecognition;
+
     if (!SpeechRecognition) {
       toast.error("Speech recognition is not supported in your browser.");
       return;
     }
+
     const recognition = new SpeechRecognition();
     recognition.lang = "en-US";
     recognition.interimResults = true;
@@ -78,20 +73,20 @@ export function AgentChat({ context }: AgentChatProps) {
     recognition.onresult = (event: any) => {
       let interim = "";
       let final = "";
+
       for (let i = event.resultIndex; i < event.results.length; i++) {
-        const transcript = event.results[i][0].transcript;
+        const transcript = event.results[i][0]?.transcript ?? "";
         if (event.results[i].isFinal) {
           final += transcript;
         } else {
           interim += transcript;
         }
       }
+
       setInterimTranscript(interim);
 
-      // When a final result is available, send it as a user message
       if (final) {
-        sendMessage(final);
-        setInterimTranscript("");
+        setFinalTranscript((prev) => (prev ? prev + " " + final : final));
       }
     };
 
@@ -103,12 +98,23 @@ export function AgentChat({ context }: AgentChatProps) {
 
     recognition.onend = () => {
       setIsListening(false);
+
+      setFinalTranscript((prevFinal) => {
+        const combined = (prevFinal + " " + interimTranscript).trim();
+
+        setInterimTranscript("");
+
+        if (combined) {
+          sendMessage(combined);
+        }
+
+        return "";
+      });
     };
 
     recognitionRef.current = recognition as any;
   }, []);
 
-  // ------------------------- LOAD AGENTS -------------------------
   useEffect(() => {
     async function loadAgents() {
       try {
@@ -125,7 +131,6 @@ export function AgentChat({ context }: AgentChatProps) {
     loadAgents();
   }, []);
 
-  // ------------------------- CREATE AGENT (MODAL) -------------------------
   const handleCreateAgent = async () => {
     try {
       const res = await fetch("/api/create-agent", {
@@ -134,24 +139,20 @@ export function AgentChat({ context }: AgentChatProps) {
         body: JSON.stringify({
           name: agentName,
           description: agentDescription,
-          voice: selectedVoice, // or prompt, etc.
+          voice: selectedVoice,
         }),
       });
       if (!res.ok) {
         const err = await res.json();
-        console.log("error in create-agent route", err);
         throw new Error(err.error || "Failed to create agent");
       }
 
       const newAgent = await res.json();
-      console.log("new agent", newAgent);
       toast.success("Agent created successfully!");
 
-      // Update local state
       setAgents((prev) => [...prev, newAgent]);
       setSelectedAgentId(newAgent.id);
 
-      // Reset modal fields & close
       setOpen(false);
       setAgentName("");
       setAgentDescription("");
@@ -161,14 +162,6 @@ export function AgentChat({ context }: AgentChatProps) {
     }
   };
 
-  // ------------------------- CONNECT WEBSOCKET -------------------------
-  /**
-   * This function:
-   * 1) Fetches the wss:// URL from /api/agent-init
-   * 2) Opens the WebSocket
-   * 3) Sends the "setup" message with your API key
-   * 4) (optionally) Sends the initial user question as textIn
-   */
   const connectWebSocket = async (initialTextMessage?: string) => {
     if (!selectedAgentId) {
       toast.error("No agent selected.");
@@ -178,7 +171,6 @@ export function AgentChat({ context }: AgentChatProps) {
     setIsConnecting(true);
 
     try {
-      // 1) /api/agent-init returns { wsUrl: "wss://api.play.ai/v1/talk/<agentId>" }
       const res = await fetch("/api/agent-init", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -190,18 +182,21 @@ export function AgentChat({ context }: AgentChatProps) {
       const { wsUrl } = data;
       const socket = new WebSocket(wsUrl);
 
-      // 2) On open, send the setup message with your Play.ai API key
       socket.onopen = () => {
         console.log("WebSocket connected");
         setIsConnecting(false);
 
-        socket.send(JSON.stringify({ type: "setup", apiKey: playAiApiKey }));
+        socket.send(
+          JSON.stringify({
+            type: "setup",
+            apiKey: `${process.env.NEXT_PUBLIC_PLAY_AI_API_KEY}`,
+          })
+        );
 
-        // If we have an initial user text message to send
         if (initialTextMessage?.trim()) {
           socket.send(
             JSON.stringify({
-              type: "textIn",
+              type: "audioIn",
               data: initialTextMessage,
             })
           );
@@ -212,14 +207,12 @@ export function AgentChat({ context }: AgentChatProps) {
         }
       };
 
-      // 3) Handle incoming messages
       socket.onmessage = (event) => {
         try {
           const msg = JSON.parse(event.data);
 
           switch (msg.type) {
             case "textOut":
-              // final text reply
               setMessages((prev) => [
                 ...prev,
                 { role: "agent", text: msg.data },
@@ -227,25 +220,21 @@ export function AgentChat({ context }: AgentChatProps) {
               break;
 
             case "textStream":
-              // partial text streaming
               setMessages((prev) => {
                 const lastMsg = prev[prev.length - 1];
                 if (lastMsg && lastMsg.role === "agent") {
-                  // append to existing agent message
                   return [
                     ...prev.slice(0, -1),
                     { role: "agent", text: lastMsg.text + msg.data },
                   ];
                 }
-                // if no agent message yet, create a new one
+
                 return [...prev, { role: "agent", text: msg.data }];
               });
               break;
 
             case "audioStream":
-              // The agent is sending base64 audio data
-              // Example: decode & play
-              console.log("Received audioStream message", msg.data);
+              console.log("Received audioStream message");
               const audioBlob = base64ToBlob(msg.data, "audio/wav");
               const audioUrl = URL.createObjectURL(audioBlob);
               const audio = new Audio(audioUrl);
@@ -275,13 +264,21 @@ export function AgentChat({ context }: AgentChatProps) {
     } catch (err: any) {
       console.error(err);
       setIsConnecting(false);
-      toast.error("Failed to connect to the agent", {
-        description: err.message,
-      });
+      toast.error("Failed to connect to the agent: " + err.message);
     }
   };
 
-  // ------------------------- BLOB HELPER (for audio) -------------------------
+  const sendMessage = (messageText: string) => {
+    if (!messageText.trim()) return;
+
+    if (!ws || ws.readyState !== WebSocket.OPEN) {
+      connectWebSocket(messageText);
+    } else {
+      ws.send(JSON.stringify({ type: "textIn", data: messageText }));
+      setMessages((prev) => [...prev, { role: "user", text: messageText }]);
+    }
+  };
+
   function base64ToBlob(base64Data: string, contentType = ""): Blob {
     const sliceSize = 1024;
     const byteCharacters = atob(base64Data);
@@ -289,44 +286,30 @@ export function AgentChat({ context }: AgentChatProps) {
     const slicesCount = Math.ceil(bytesLength / sliceSize);
     const byteArrays = new Array(slicesCount);
 
-    for (let sliceIndex = 0; sliceIndex < slicesCount; ++sliceIndex) {
+    for (let sliceIndex = 0; sliceIndex < slicesCount; sliceIndex++) {
       const begin = sliceIndex * sliceSize;
       const end = Math.min(begin + sliceSize, bytesLength);
-
       const bytes = new Array(end - begin);
-      for (let offset = begin, i = 0; offset < end; ++offset, ++i) {
+
+      for (let offset = begin, i = 0; offset < end; offset++, i++) {
         bytes[i] = byteCharacters[offset].charCodeAt(0);
       }
       byteArrays[sliceIndex] = new Uint8Array(bytes);
     }
-
     return new Blob(byteArrays, { type: contentType });
   }
 
-  // ------------------------- SEND MESSAGE (textIn) -------------------------
-  const sendMessage = (messageText: string) => {
-    if (!messageText.trim()) return;
-
-    // If socket not open, connect and send as "initial" message
-    if (!ws || ws.readyState !== WebSocket.OPEN) {
-      connectWebSocket(messageText);
-    } else {
-      // Otherwise, just send it
-      ws.send(JSON.stringify({ type: "textIn", data: messageText }));
-      setMessages((prev) => [...prev, { role: "user", text: messageText }]);
-    }
-  };
-
-  // ------------------------- SPEECH TOGGLE -------------------------
   const toggleListening = () => {
     if (!recognitionRef.current) {
       toast.error("Speech recognition is not supported.");
       return;
     }
+
     if (isListening) {
       recognitionRef.current.stop();
-      setIsListening(false);
     } else {
+      setFinalTranscript("");
+      setInterimTranscript("");
       try {
         recognitionRef.current.start();
         setIsListening(true);
@@ -336,13 +319,21 @@ export function AgentChat({ context }: AgentChatProps) {
     }
   };
 
-  // ----------------------------------------------------------------------
+  const handleManualSend = () => {
+    const input = document.querySelector(
+      'input[placeholder="Type your message"]'
+    ) as HTMLInputElement;
+    if (input.value.trim()) {
+      sendMessage(input.value);
+      input.value = "";
+    }
+  };
 
   return (
     <div className="border-t mt-4 pt-4">
       {/* ----- TOP RIGHT CONTROLS: Select Agent & Create Agent Modal ----- */}
       <div className="flex justify-end items-center mb-4 gap-4">
-        {/* Agent Selector using Shadcn Select */}
+        {/* Agent Selector */}
         <div className="flex items-center gap-2">
           <span className="text-sm">Select Agent:</span>
           <Select
@@ -362,7 +353,7 @@ export function AgentChat({ context }: AgentChatProps) {
           </Select>
         </div>
 
-        {/* Modal (Dialog) for Creating a New Agent */}
+        {/* Dialog: Create a New Agent */}
         <Dialog open={open} onOpenChange={setOpen}>
           <DialogTrigger asChild>
             <Button variant="outline">Create Agent</Button>
@@ -396,7 +387,6 @@ export function AgentChat({ context }: AgentChatProps) {
                 selectedVoice={selectedVoice}
                 setSelectedVoice={setSelectedVoice}
               />
-              {/* If you want to handle `agentPrompt` or other fields, add them here. */}
             </div>
 
             <DialogFooter>
@@ -408,7 +398,7 @@ export function AgentChat({ context }: AgentChatProps) {
 
       {/* ----- Chat UI ----- */}
       <h4 className="text-sm font-medium mb-2">Talk to the selected agent</h4>
-      <div className="h-32 overflow-y-auto bg-gray-100 p-2 rounded mb-2">
+      <div className="h-32 overflow-y-auto bg-background p-2 rounded mb-2 border border-border">
         {messages.map((msg, index) => (
           <div
             key={index}
@@ -420,6 +410,7 @@ export function AgentChat({ context }: AgentChatProps) {
             {msg.text}
           </div>
         ))}
+        {/* Show partial speech while user is talking */}
         {isListening && interimTranscript && (
           <div className="mb-1 text-gray-600 italic">
             <strong>You (speaking):</strong> {interimTranscript}
@@ -427,6 +418,7 @@ export function AgentChat({ context }: AgentChatProps) {
         )}
       </div>
 
+      {/* Speech Buttons */}
       <div className="flex items-center gap-2">
         <Button onClick={toggleListening} disabled={isConnecting}>
           {isListening ? "Stop Listening" : "Speak"}
@@ -436,35 +428,17 @@ export function AgentChat({ context }: AgentChatProps) {
         )}
       </div>
 
-      {/* Simple input to type a message manually */}
+      {/* Manual text input */}
       <div className="mt-4 flex gap-2">
         <input
           type="text"
           placeholder="Type your message"
-          onKeyDown={(e) => {
-            if (e.key === "Enter") {
-              const val = (e.target as HTMLInputElement).value;
-              if (val.trim()) {
-                sendMessage(val);
-                (e.target as HTMLInputElement).value = "";
-              }
-            }
-          }}
           className="border p-1 flex-1"
-        />
-        <Button
-          onClick={() => {
-            const input = document.querySelector(
-              'input[placeholder="Type your message"]'
-            ) as HTMLInputElement;
-            if (input.value.trim()) {
-              sendMessage(input.value);
-              input.value = "";
-            }
+          onKeyDown={(e) => {
+            if (e.key === "Enter") handleManualSend();
           }}
-        >
-          Send
-        </Button>
+        />
+        <Button onClick={handleManualSend}>Send</Button>
       </div>
     </div>
   );

@@ -27,7 +27,6 @@ import "react-pdf/dist/esm/Page/TextLayer.css";
 import "react-pdf/dist/esm/Page/AnnotationLayer.css";
 import { AgentChat } from "./agent-chat";
 
-// If you have pdf.worker.js in /public:
 pdfjs.GlobalWorkerOptions.workerSrc = "/pdf.worker.js";
 
 export function PdfViewer() {
@@ -53,7 +52,6 @@ export function PdfViewer() {
   const [speed, setSpeed] = useState<number>(1);
   const [temperature, setTemperature] = useState<number>(0.7);
 
-  // Voice (if you want to allow switching voices)
   const [selectedVoice, setSelectedVoice] = useState<string>(
     "s3://voice-cloning-zero-shot/801a663f-efd0-4254-98d0-5c175514c3e8/jennifer/manifest.json"
   );
@@ -75,7 +73,6 @@ export function PdfViewer() {
     };
   }, [file]);
 
-  // Create audio element once on component mount
   useEffect(() => {
     const audio = new Audio();
 
@@ -559,7 +556,6 @@ export function PdfViewer() {
         )}
       </div>
 
-      {/* RIGHT SIDE: Text-to-Speech Panel */}
       <div className="h-[75%] overflow-y-auto px-8 flex flex-col max-w-[45%] w-full">
         {/* Title */}
         {/* <div className="flex items-center mb-4">
@@ -567,7 +563,6 @@ export function PdfViewer() {
           <h3 className="text-lg font-medium">Text-to-Speech</h3>
         </div> */}
 
-        {/* Voice Selector & Audio Controls (optional components) */}
         <VoiceSelector
           selectedVoice={selectedVoice}
           setSelectedVoice={setSelectedVoice}
@@ -580,7 +575,6 @@ export function PdfViewer() {
             setTemperature={setTemperature}
           />
 
-          {/* Generation Progress */}
           <div className="mt-4">
             <span className="text-sm font-medium">Generation Progress</span>
             {audioProgress > 0 && (

@@ -1,7 +1,7 @@
 // pages/api/create-agent.ts
 import { NextResponse } from "next/server";
 import { NextRequest } from "next/server";
-
+import { createAgent } from "@/lib/utils/db-utils";
 export async function POST(req: NextRequest, res: NextResponse) {
   if (req.method !== "POST") {
     return NextResponse.json({ error: "Method not allowed" }, { status: 405 });
@@ -30,6 +30,10 @@ export async function POST(req: NextRequest, res: NextResponse) {
     }
 
     const data = await response.json();
+
+    const saveAgent = await createAgent(name, description, voice);
+    console.log("saved agent", saveAgent);
+
     console.log("created agent data", data);
     // Return the created agent data
     return NextResponse.json(data, { status: 200 });
