@@ -562,10 +562,10 @@ export function PdfViewer() {
       {/* RIGHT SIDE: Text-to-Speech Panel */}
       <div className="h-[75%] overflow-hidden px-8 flex flex-col max-w-[45%] w-full">
         {/* Title */}
-        <div className="flex items-center mb-4">
+        {/* <div className="flex items-center mb-4">
           <Volume2 className="mr-2 h-5 w-5 text-primary" />
           <h3 className="text-lg font-medium">Text-to-Speech</h3>
-        </div>
+        </div> */}
 
         {/* Voice Selector & Audio Controls (optional components) */}
         <VoiceSelector

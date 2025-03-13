@@ -157,8 +157,8 @@ export function AgentChat({ context }: AgentChatProps) {
 
   return (
     <div className="border-t mt-4 pt-4">
-      <h4 className="text-lg font-semibold mb-2">Voice Chat with Agent</h4>
-      <div className="h-10 overflow-y-auto bg-gray-100 p-2 rounded mb-2">
+      <h4 className="text-sm font-medium mb-2">Talk to the current page</h4>
+      <div className="h-20 overflow-y-auto bg-gray-100 p-2 rounded mb-2">
         {messages.map((msg, index) => (
           <div
             key={index}
