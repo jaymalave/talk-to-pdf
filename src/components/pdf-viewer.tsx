@@ -25,6 +25,7 @@ import { VoiceSelector } from "@/components/voice-selector";
 import { AudioControls } from "@/components/audio-controls";
 import "react-pdf/dist/esm/Page/TextLayer.css";
 import "react-pdf/dist/esm/Page/AnnotationLayer.css";
+import { AgentChat } from "./agent-chat";
 
 // If you have pdf.worker.js in /public:
 pdfjs.GlobalWorkerOptions.workerSrc = "/pdf.worker.js";
@@ -629,6 +630,7 @@ export function PdfViewer() {
             )}
           </Button>
         </div>
+        <AgentChat context={pageTexts[pageNumber - 1] || ""} />
       </div>
     </div>
   );

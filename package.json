@@ -36,6 +36,7 @@
     "@types/react": "^19",
     "@types/react-dom": "^19",
     "@types/react-pdf": "^6.2.0",
+    "@types/web": "^0.0.211",
     "tailwindcss": "^4",
     "typescript": "^5"
   }
