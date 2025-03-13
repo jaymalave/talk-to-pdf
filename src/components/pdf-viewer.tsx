@@ -429,7 +429,7 @@ export function PdfViewer() {
               </div>
               <Button
                 onClick={() => fileInputRef.current?.click()}
-                className="mt-2"
+                className="mt-2 cursor-pointer"
               >
                 <Upload className="mr-2 h-4 w-4" />
                 Select PDF
@@ -560,7 +560,7 @@ export function PdfViewer() {
       </div>
 
       {/* RIGHT SIDE: Text-to-Speech Panel */}
-      <div className="h-[75%] overflow-hidden px-8 flex flex-col max-w-[45%] w-full">
+      <div className="h-[75%] overflow-y-auto px-8 flex flex-col max-w-[45%] w-full">
         {/* Title */}
         {/* <div className="flex items-center mb-4">
           <Volume2 className="mr-2 h-5 w-5 text-primary" />
