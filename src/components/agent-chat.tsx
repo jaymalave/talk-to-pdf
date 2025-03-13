@@ -25,11 +25,6 @@ import {
   DialogFooter,
 } from "@/components/ui/dialog";
 
-// Optionally, you might use these if you have them in your Shadcn setup
-// import { Input } from "@/components/ui/input";
-// import { Label } from "@/components/ui/label";
-
-// ------ TYPES ------
 type Message = {
   role: "user" | "agent";
   text: string;
@@ -39,7 +34,6 @@ interface AgentChatProps {
   context: string;
 }
 
-// ------ COMPONENT ------
 export function AgentChat({ context }: AgentChatProps) {
   const [ws, setWs] = useState<WebSocket | null>(null);
 
@@ -53,18 +47,21 @@ export function AgentChat({ context }: AgentChatProps) {
   const recognitionRef = useRef<any | null>(null);
 
   // Agent list and selection
-  const [agents, setAgents] = useState<any[]>([]); // adjust type to your structure
+  const [agents, setAgents] = useState<any[]>([]);
   const [selectedAgentId, setSelectedAgentId] = useState<string>("");
 
   // For creating a new agent in the modal
-  const [open, setOpen] = useState(false); // Controls the Dialog (modal)
+  const [open, setOpen] = useState(false);
   const [agentName, setAgentName] = useState("");
   const [agentDescription, setAgentDescription] = useState("");
   const [agentPrompt, setAgentPrompt] = useState("");
   const [selectedVoice, setSelectedVoice] = useState("");
-  // ... other fields if needed (temperature, memory_window, etc.)
 
-  // ----------- SPEECH RECOGNITION -----------
+  // Your Play.ai API key (store in .env if possible)
+  const playAiApiKey =
+    process.env.NEXT_PUBLIC_PLAY_AI_API_KEY || "YOUR_API_KEY";
+
+  // ------------------------- SPEECH RECOGNITION -------------------------
   useEffect(() => {
     const SpeechRecognition =
       (window as any).SpeechRecognition ||
@@ -75,7 +72,7 @@ export function AgentChat({ context }: AgentChatProps) {
     }
     const recognition = new SpeechRecognition();
     recognition.lang = "en-US";
-    recognition.interimResults = true; // enable interim (live) results
+    recognition.interimResults = true;
     recognition.maxAlternatives = 1;
 
     recognition.onresult = (event: any) => {
@@ -89,8 +86,9 @@ export function AgentChat({ context }: AgentChatProps) {
           interim += transcript;
         }
       }
-      // Update live transcript display
       setInterimTranscript(interim);
+
+      // When a final result is available, send it as a user message
       if (final) {
         sendMessage(final);
         setInterimTranscript("");
@@ -107,14 +105,13 @@ export function AgentChat({ context }: AgentChatProps) {
       setIsListening(false);
     };
 
-    recognitionRef.current = recognition;
+    recognitionRef.current = recognition as any;
   }, []);
 
-  // ----------- LOAD AGENTS -----------
+  // ------------------------- LOAD AGENTS -------------------------
   useEffect(() => {
     async function loadAgents() {
       try {
-        // Suppose you have an API route GET /api/agents to list all
         const res = await fetch("/api/agents");
         if (!res.ok) {
           throw new Error("Failed to load agents");
@@ -128,7 +125,7 @@ export function AgentChat({ context }: AgentChatProps) {
     loadAgents();
   }, []);
 
-  // ----------- CREATE AGENT -----------
+  // ------------------------- CREATE AGENT (MODAL) -------------------------
   const handleCreateAgent = async () => {
     try {
       const res = await fetch("/api/create-agent", {
@@ -137,7 +134,7 @@ export function AgentChat({ context }: AgentChatProps) {
         body: JSON.stringify({
           name: agentName,
           description: agentDescription,
-          voice: selectedVoice,
+          voice: selectedVoice, // or prompt, etc.
         }),
       });
       if (!res.ok) {
@@ -145,14 +142,16 @@ export function AgentChat({ context }: AgentChatProps) {
         console.log("error in create-agent route", err);
         throw new Error(err.error || "Failed to create agent");
       }
+
       const newAgent = await res.json();
       console.log("new agent", newAgent);
       toast.success("Agent created successfully!");
+
       // Update local state
       setAgents((prev) => [...prev, newAgent]);
-      // Optionally select the newly created agent
       setSelectedAgentId(newAgent.id);
-      // Close the modal and reset fields
+
+      // Reset modal fields & close
       setOpen(false);
       setAgentName("");
       setAgentDescription("");
@@ -162,81 +161,100 @@ export function AgentChat({ context }: AgentChatProps) {
     }
   };
 
-  // ----------- CONNECT / INITIATE WEBSOCKET -----------
-  const connectWebSocket = async (initialQuestion: string) => {
+  // ------------------------- CONNECT WEBSOCKET -------------------------
+  /**
+   * This function:
+   * 1) Fetches the wss:// URL from /api/agent-init
+   * 2) Opens the WebSocket
+   * 3) Sends the "setup" message with your API key
+   * 4) (optionally) Sends the initial user question as textIn
+   */
+  const connectWebSocket = async (initialTextMessage?: string) => {
     if (!selectedAgentId) {
       toast.error("No agent selected.");
       return;
     }
+
     setIsConnecting(true);
 
     try {
+      // 1) /api/agent-init returns { wsUrl: "wss://api.play.ai/v1/talk/<agentId>" }
       const res = await fetch("/api/agent-init", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          agentId: selectedAgentId,
-          question: initialQuestion,
-        }),
+        body: JSON.stringify({ agentId: selectedAgentId }),
       });
       const data = await res.json();
-      if (data.error) {
-        throw new Error(data.error);
-      }
+      if (data.error) throw new Error(data.error);
 
       const { wsUrl } = data;
       const socket = new WebSocket(wsUrl);
 
+      // 2) On open, send the setup message with your Play.ai API key
       socket.onopen = () => {
+        console.log("WebSocket connected");
         setIsConnecting(false);
-        if (initialQuestion.trim()) {
-          socket.send(JSON.stringify({ question: initialQuestion }));
+
+        socket.send(JSON.stringify({ type: "setup", apiKey: playAiApiKey }));
+
+        // If we have an initial user text message to send
+        if (initialTextMessage?.trim()) {
+          socket.send(
+            JSON.stringify({
+              type: "textIn",
+              data: initialTextMessage,
+            })
+          );
           setMessages((prev) => [
             ...prev,
-            { role: "user", text: initialQuestion },
+            { role: "user", text: initialTextMessage },
           ]);
         }
       };
 
-      // ---------- STREAMING RESPONSE ----------
+      // 3) Handle incoming messages
       socket.onmessage = (event) => {
         try {
           const msg = JSON.parse(event.data);
 
-          if (msg.type === "partial") {
-            // Partial token
-            setMessages((prev) => {
-              const lastMsg = prev[prev.length - 1];
-              if (lastMsg && lastMsg.role === "agent") {
-                return [
-                  ...prev.slice(0, -1),
-                  { role: "agent", text: lastMsg.text + msg.token },
-                ];
-              } else {
-                return [...prev, { role: "agent", text: msg.token }];
-              }
-            });
-          } else if (msg.type === "final") {
-            // Final chunk of text
-            setMessages((prev) => {
-              const lastMsg = prev[prev.length - 1];
-              if (lastMsg && lastMsg.role === "agent") {
-                return [
-                  ...prev.slice(0, -1),
-                  { role: "agent", text: lastMsg.text + (msg.token || "") },
-                ];
-              } else {
-                return [...prev, { role: "agent", text: msg.token }];
-              }
-            });
-          } else {
-            // Fallback if message is plain
-            if (msg.answer) {
+          switch (msg.type) {
+            case "textOut":
+              // final text reply
               setMessages((prev) => [
                 ...prev,
-                { role: "agent", text: msg.answer },
+                { role: "agent", text: msg.data },
               ]);
-            }
+              break;
+
+            case "textStream":
+              // partial text streaming
+              setMessages((prev) => {
+                const lastMsg = prev[prev.length - 1];
+                if (lastMsg && lastMsg.role === "agent") {
+                  // append to existing agent message
+                  return [
+                    ...prev.slice(0, -1),
+                    { role: "agent", text: lastMsg.text + msg.data },
+                  ];
+                }
+                // if no agent message yet, create a new one
+                return [...prev, { role: "agent", text: msg.data }];
+              });
+              break;
+
+            case "audioStream":
+              // The agent is sending base64 audio data
+              // Example: decode & play
+              console.log("Received audioStream message", msg.data);
+              const audioBlob = base64ToBlob(msg.data, "audio/wav");
+              const audioUrl = URL.createObjectURL(audioBlob);
+              const audio = new Audio(audioUrl);
+              audio.play();
+              break;
+
+            default:
+              console.log("Unknown message type:", msg);
+              break;
           }
         } catch (err) {
           console.error("Error parsing agent message:", err);
@@ -255,6 +273,7 @@ export function AgentChat({ context }: AgentChatProps) {
 
       setWs(socket);
     } catch (err: any) {
+      console.error(err);
       setIsConnecting(false);
       toast.error("Failed to connect to the agent", {
         description: err.message,
@@ -262,19 +281,43 @@ export function AgentChat({ context }: AgentChatProps) {
     }
   };
 
-  // ----------- SEND MESSAGE -----------
+  // ------------------------- BLOB HELPER (for audio) -------------------------
+  function base64ToBlob(base64Data: string, contentType = ""): Blob {
+    const sliceSize = 1024;
+    const byteCharacters = atob(base64Data);
+    const bytesLength = byteCharacters.length;
+    const slicesCount = Math.ceil(bytesLength / sliceSize);
+    const byteArrays = new Array(slicesCount);
+
+    for (let sliceIndex = 0; sliceIndex < slicesCount; ++sliceIndex) {
+      const begin = sliceIndex * sliceSize;
+      const end = Math.min(begin + sliceSize, bytesLength);
+
+      const bytes = new Array(end - begin);
+      for (let offset = begin, i = 0; offset < end; ++offset, ++i) {
+        bytes[i] = byteCharacters[offset].charCodeAt(0);
+      }
+      byteArrays[sliceIndex] = new Uint8Array(bytes);
+    }
+
+    return new Blob(byteArrays, { type: contentType });
+  }
+
+  // ------------------------- SEND MESSAGE (textIn) -------------------------
   const sendMessage = (messageText: string) => {
     if (!messageText.trim()) return;
+
+    // If socket not open, connect and send as "initial" message
     if (!ws || ws.readyState !== WebSocket.OPEN) {
-      // No active session -> initialize one with the first question
       connectWebSocket(messageText);
     } else {
-      ws.send(JSON.stringify({ question: messageText }));
+      // Otherwise, just send it
+      ws.send(JSON.stringify({ type: "textIn", data: messageText }));
       setMessages((prev) => [...prev, { role: "user", text: messageText }]);
     }
   };
 
-  // ----------- SPEECH TOGGLE -----------
+  // ------------------------- SPEECH TOGGLE -------------------------
   const toggleListening = () => {
     if (!recognitionRef.current) {
       toast.error("Speech recognition is not supported.");
@@ -292,6 +335,8 @@ export function AgentChat({ context }: AgentChatProps) {
       }
     }
   };
+
+  // ----------------------------------------------------------------------
 
   return (
     <div className="border-t mt-4 pt-4">
@@ -331,8 +376,6 @@ export function AgentChat({ context }: AgentChatProps) {
             </DialogHeader>
 
             <div className="flex flex-col gap-2 py-2">
-              {/* If you have Label + Input components from Shadcn, use them. Otherwise, plain HTML inputs are fine. */}
-              {/* <Label htmlFor="agentName">Agent Name</Label> */}
               <input
                 id="agentName"
                 type="text"
@@ -341,8 +384,6 @@ export function AgentChat({ context }: AgentChatProps) {
                 onChange={(e) => setAgentName(e.target.value)}
                 className="border rounded p-1 text-sm"
               />
-
-              {/* <Label htmlFor="agentDescription">Description</Label> */}
               <input
                 id="agentDescription"
                 type="text"
@@ -351,12 +392,11 @@ export function AgentChat({ context }: AgentChatProps) {
                 onChange={(e) => setAgentDescription(e.target.value)}
                 className="border rounded p-1 text-sm"
               />
-
               <VoiceSelector
                 selectedVoice={selectedVoice}
                 setSelectedVoice={setSelectedVoice}
               />
-              {/* Additional fields if needed */}
+              {/* If you want to handle `agentPrompt` or other fields, add them here. */}
             </div>
 
             <DialogFooter>
@@ -386,6 +426,7 @@ export function AgentChat({ context }: AgentChatProps) {
           </div>
         )}
       </div>
+
       <div className="flex items-center gap-2">
         <Button onClick={toggleListening} disabled={isConnecting}>
           {isListening ? "Stop Listening" : "Speak"}
@@ -396,14 +437,17 @@ export function AgentChat({ context }: AgentChatProps) {
       </div>
 
       {/* Simple input to type a message manually */}
-      {/* <div className="mt-4 flex gap-2">
+      <div className="mt-4 flex gap-2">
         <input
           type="text"
           placeholder="Type your message"
           onKeyDown={(e) => {
             if (e.key === "Enter") {
-              sendMessage((e.target as HTMLInputElement).value);
-              (e.target as HTMLInputElement).value = "";
+              const val = (e.target as HTMLInputElement).value;
+              if (val.trim()) {
+                sendMessage(val);
+                (e.target as HTMLInputElement).value = "";
+              }
             }
           }}
           className="border p-1 flex-1"
@@ -421,7 +465,7 @@ export function AgentChat({ context }: AgentChatProps) {
         >
           Send
         </Button>
-      </div> */}
+      </div>
     </div>
   );
 }
