@@ -32,6 +32,8 @@ export async function POST(req: NextRequest) {
       temperature,
     };
 
+    console.log("payload before sending to Play.AI", payload);
+
     const options = {
       method: "POST",
       headers: {
