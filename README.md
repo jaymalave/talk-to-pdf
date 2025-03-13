@@ -1,36 +1,87 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Project Name
+
+A NextJS-based application that leverages MongoDB, Tailwind CSS, shadcn UI components, and React PDF for an efficient and modern web experience.
+
+## Table of Contents
+
+- [Overview](#overview)
+- [Tech Stack](#tech-stack)
+- [Getting Started](#getting-started)
+- [Environment Variables](#environment-variables)
+- [Running the Application](#running-the-application)
+
+## Overview
+
+This project is built using a modern tech stack to deliver both robust server-side capabilities and a dynamic client-side experience. It integrates a secure backend with NextJS, uses MongoDB for data persistence, and leverages Tailwind CSS with shadcn UI components for rapid UI development. Additionally, the React PDF package is used for handling PDF files within the application.
+
+## Tech Stack
+
+- **NextJS**: Serves as both the frontend and backend framework, offering server-side rendering, API routes, and a seamless development experience.
+- **MongoDB**: A NoSQL database used for storing and managing application data efficiently.
+- **Tailwind CSS**: A utility-first CSS framework that simplifies custom styling with pre-defined classes.
+- **shadcn UI**: A component kit that works alongside Tailwind CSS to provide a set of pre-designed, customizable UI components.
+- **React PDF**: An npm package for rendering and handling PDF documents within the React environment.
 
 ## Getting Started
 
-First, run the development server:
+### Prerequisites
 
-```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+- [Node.js](https://nodejs.org/) (v14 or higher)
+- [npm](https://www.npmjs.com/)
+- A MongoDB instance (local or via [MongoDB Atlas](https://www.mongodb.com/cloud/atlas))
+
+### Installation
+
+1. **Clone the Repository**
+
+   ```bash
+   git clone https://github.com/jaymalave/talk-to-pdf.git
+   cd your-repo
+   ```
+
+2. **Install Dependencies**
+   ```bash
+   npm install
+   ```
+
+### Environment Variables
+
+```env
+PLAY_AI_API_KEY=YOUR_PLAY_AI_API_KEY
+PLAY_AI_USER_ID=YOUR_PLAY_AI_USER_ID
+
+NEXT_PUBLIC_PLAY_AI_API_KEY=YOUR_PLAY_AI_API_KEY
+NEXT_PUBLIC_PLAY_AI_USER_ID=YOUR_PLAY_AI_USER_ID
+
+MONGODB_URI=YOUR_MONGODB_URI
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+### Explanation of Environment Variables
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+-   **PLAY_AI_API_KEY**:  
+    Your secret API key for the Play AI service. This key is used on the server-side to authenticate API requests and should remain confidential.
+    
+-   **PLAY_AI_USER_ID**:  
+    Your unique user identifier associated with the Play AI service. This is used on the backend for authentication and user-specific operations.
+    
+-   **NEXT_PUBLIC_PLAY_AI_API_KEY**:  
+    The public version of the Play AI API key. This is exposed to the client-side to enable frontend interactions with the Play AI service. Note that this key should have limited permissions compared to the secret key.
+    
+-   **NEXT_PUBLIC_PLAY_AI_USER_ID**:  
+    The public user identifier for the Play AI service. This variable is used on the frontend to help identify the user during client-side operations.
+    
+-   **MONGODB_URI**:  
+    The connection string for your MongoDB database. This URI should include your MongoDB credentials and connection details. For MongoDB Atlas, it usually looks like:  
+    `mongodb+srv://<username>:<password>@cluster0.your-cluster.mongodb.net/`
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+## Running the Application
 
-## Learn More
+To start the development server, run the following command in the root directory:
 
-To learn more about Next.js, take a look at the following resources:
+bash
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+Copy
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+`npm run dev` 
 
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+Open your browser and navigate to http://localhost:3000 to see the application in action.
