@@ -1,5 +1,4 @@
 "use client";
-
 import { useState } from "react";
 import { Slider } from "@/components/ui/slider";
 import { Label } from "@/components/ui/label";
@@ -35,7 +34,6 @@ export function AudioControls({
           onValueChange={(value) => setSpeed(value[0])}
         />
       </div>
-
       <div className="space-y-2">
         <div className="flex justify-between items-center">
           <Label htmlFor="temperature-slider" className="text-sm font-medium">

@@ -1,5 +1,4 @@
 "use client";
-
 import { useState } from "react";
 import {
   Select,
@@ -9,7 +8,6 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 
-// Mock voice data
 const voices = [
   {
     name: "Angelo",
@@ -57,7 +55,6 @@ export function VoiceSelector({
   setSelectedVoice: (value: string) => void;
 }) {
   const [audioSample, setAudioSample] = useState<string | null>(null);
-
   const handleVoiceChange = (value: string) => {
     setSelectedVoice(value);
     const voice = voices.find((v) => v.value === value);
@@ -65,18 +62,15 @@ export function VoiceSelector({
       setAudioSample(voice.sample);
     }
   };
-
   const playAudioSample = () => {
     if (audioSample) {
       const audio = new Audio(audioSample);
       audio.play();
     }
   };
-
   const capitalize = (str: string) => {
     return str.charAt(0).toUpperCase() + str.slice(1);
   };
-
   return (
     <div className="space-y-2">
       <div className="flex justify-between items-center">
@@ -92,9 +86,8 @@ export function VoiceSelector({
           </button>
         )}
       </div>
-
       <Select value={selectedVoice} onValueChange={handleVoiceChange}>
-        <SelectTrigger id="voice-select" className="w-full">
+        <SelectTrigger id="voice-select" className="w-full py-1">
           <SelectValue placeholder="Select a voice" />
         </SelectTrigger>
         <SelectContent>
@@ -102,10 +95,10 @@ export function VoiceSelector({
             <SelectItem
               key={voice.value}
               value={voice.value}
-              className="flex items-center justify-between"
+              className="flex items-center justify-between w-full"
             >
-              <div className="flex flex-row items-center gap-2">
-                <span>{voice.name}</span>
+              <div className="flex flex-row items-center justify-between w-full">
+                <span className="mr-2">{voice.name}</span>
                 <span className="text-xs text-muted-foreground">
                   {capitalize(voice.gender)} • {capitalize(voice.accent)} •{" "}
                   {capitalize(voice.style)}

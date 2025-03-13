@@ -1,5 +1,4 @@
 "use client";
-
 import React, { useState, useEffect, useRef } from "react";
 import { Document, Page, pdfjs } from "react-pdf";
 import { toast } from "sonner";
@@ -31,16 +30,13 @@ pdfjs.GlobalWorkerOptions.workerSrc = "/pdf.worker.js";
 
 export function PdfViewer() {
   const [file, setFile] = useState<File | null>(null);
-  const [docUrl, setDocUrl] = useState<string>(""); // object URL
+  const [docUrl, setDocUrl] = useState<string>("");
   const [numPages, setNumPages] = useState<number>(0);
   const [pageNumber, setPageNumber] = useState<number>(1);
   const [scale, setScale] = useState<number>(1.0);
   const [isLoading, setIsLoading] = useState<boolean>(false);
-
   const [pdfText, setPdfText] = useState<string>("");
   const [pageTexts, setPageTexts] = useState<string[]>([]);
-
-  // Audio-related state
   const [isGeneratingAudio, setIsGeneratingAudio] = useState<boolean>(false);
   const [audioProgress, setAudioProgress] = useState<number>(0);
   const [isPlaying, setIsPlaying] = useState<boolean>(false);
@@ -48,19 +44,15 @@ export function PdfViewer() {
   const [pdfDocument, setPdfDocument] = useState<pdfjs.PDFDocumentProxy | null>(
     null
   );
-
   const [speed, setSpeed] = useState<number>(1);
   const [temperature, setTemperature] = useState<number>(0.7);
-
   const [selectedVoice, setSelectedVoice] = useState<string>(
     "s3://voice-cloning-zero-shot/801a663f-efd0-4254-98d0-5c175514c3e8/jennifer/manifest.json"
   );
-
   const fileInputRef = useRef<HTMLInputElement>(null);
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const abortControllerRef = useRef<AbortController | null>(null);
 
-  // Generate/Revoke the object URL whenever `file` changes
   useEffect(() => {
     if (!file) {
       setDocUrl("");
@@ -75,35 +67,25 @@ export function PdfViewer() {
 
   useEffect(() => {
     const audio = new Audio();
-
-    // Set up audio event listeners
     audio.addEventListener("play", () => setIsPlaying(true));
     audio.addEventListener("pause", () => setIsPlaying(false));
     audio.addEventListener("ended", () => {
       setIsPlaying(false);
       setAudioProgress(100);
     });
-
-    // Update progress as audio plays
     audio.addEventListener("timeupdate", () => {
       if (audio.duration) {
         const progress = (audio.currentTime / audio.duration) * 100;
         setAudioProgress(Math.round(progress));
       }
     });
-
-    // Add error handling
-    audio.addEventListener("error", (e) => {
-      console.error("Audio playback error:", e);
+    audio.addEventListener("error", () => {
+      setIsPlaying(false);
       toast.error("Audio playback error", {
         description: "There was a problem playing the audio. Please try again.",
       });
-      setIsPlaying(false);
     });
-
     audioRef.current = audio;
-
-    // Cleanup on component unmount
     return () => {
       if (audioRef.current) {
         audioRef.current.pause();
@@ -119,37 +101,19 @@ export function PdfViewer() {
     };
   }, []);
 
-  // When the page changes, stop any playing audio, reset progress
   useEffect(() => {
     stopAudio();
   }, [pageNumber]);
 
-  // ---------------- PDF Handlers ----------------
   function onDocumentLoadSuccess(document: pdfjs.PDFDocumentProxy) {
-    try {
-      console.log("Document loaded successfully");
-      setNumPages(document.numPages);
-      setPageNumber(1);
-      setIsLoading(false);
-      setPdfDocument(document);
-
-      // Extract full text and per-page text
-      extractTextFromPdf(document, document.numPages);
-    } catch (error) {
-      console.error("Error loading PDF:", error);
-      toast.error("Error loading PDF", {
-        description:
-          "There was a problem loading your document. Please try again.",
-      });
-    }
+    setNumPages(document.numPages);
+    setPageNumber(1);
+    setIsLoading(false);
+    setPdfDocument(document);
+    extractTextFromPdf(document, document.numPages);
   }
 
-  function onDocumentLoadError(error: Error) {
-    console.error("Error loading PDF:", error);
-    toast.error("Error loading PDF", {
-      description:
-        "There was a problem loading your document. Please try again.",
-    });
+  function onDocumentLoadError() {
     setIsLoading(false);
     setFile(null);
   }
@@ -168,26 +132,18 @@ export function PdfViewer() {
           .map((item: any) => item.str)
           .join(" ");
         texts.push(pageText);
-        // Add page separators to full text
         fullText += pageText + `\n\n--- Page ${i} ---\n\n`;
       }
       setPdfText(fullText);
       setPageTexts(texts);
-      console.log("Extracted PDF text successfully");
-    } catch (error) {
-      console.error("Error extracting text from PDF:", error);
-    }
+    } catch (error) {}
   }
 
-  // ---------------- File Handling ----------------
   function handleFileChange(event: React.ChangeEvent<HTMLInputElement>) {
     const files = event.target.files;
     if (files && files[0]) {
       setIsLoading(true);
       setFile(files[0]);
-
-      // Reset search, text, and audio
-
       setPdfText("");
       setPageTexts([]);
       stopAudio();
@@ -200,9 +156,6 @@ export function PdfViewer() {
     if (event.dataTransfer.files && event.dataTransfer.files[0]) {
       setIsLoading(true);
       setFile(event.dataTransfer.files[0]);
-
-      // Reset search, text and audio
-
       setPdfText("");
       setPageTexts([]);
       stopAudio();
@@ -220,7 +173,6 @@ export function PdfViewer() {
     setPageNumber(1);
     setPdfText("");
     setPageTexts([]);
-
     setPdfDocument(null);
     stopAudio();
     if (fileInputRef.current) {
@@ -228,7 +180,6 @@ export function PdfViewer() {
     }
   }
 
-  // ---------------- Pages & Zoom ----------------
   function handlePageChange(newPage: number) {
     if (newPage >= 1 && newPage <= numPages) {
       setPageNumber(newPage);
@@ -249,48 +200,32 @@ export function PdfViewer() {
     });
   }
 
-  // ---------------- Audio Helpers ----------------
-  // Stop current audio + reset states
   function stopAudio() {
-    // Abort any in-progress fetch
     if (abortControllerRef.current) {
       abortControllerRef.current.abort();
       abortControllerRef.current = null;
     }
-
-    // Stop audio playback
     if (audioRef.current) {
       audioRef.current.pause();
       audioRef.current.currentTime = 0;
     }
-
-    // Clean up audio URL
     if (audioUrl) {
       URL.revokeObjectURL(audioUrl);
       setAudioUrl(null);
     }
-
     setIsPlaying(false);
     setAudioProgress(0);
-    // setIsGeneratingAudio(false);
   }
 
   const fetchTTS = async (text: string) => {
-    // Show a clear status to the user
     setIsGeneratingAudio(true);
-    // setAudioProgress(0);
-
     try {
       if (!text || text.trim() === "") {
         throw new Error("No text available to generate audio");
       }
-
       stopAudio();
-
       const controller = new AbortController();
       abortControllerRef.current = controller;
-
-      // Prepare the API request payload
       const payload = {
         text,
         voice: selectedVoice,
@@ -298,10 +233,6 @@ export function PdfViewer() {
         speed,
         temperature,
       };
-
-      // setAudioProgress(25);
-
-      // Call the API route with streaming response
       const response = await fetch("/api/fetch-tts", {
         method: "POST",
         headers: {
@@ -310,50 +241,30 @@ export function PdfViewer() {
         body: JSON.stringify(payload),
         signal: controller.signal,
       });
-
       if (!response.ok) {
         const errorText = await response.text();
         throw new Error(`Error: ${response.status} - ${errorText}`);
       }
-
-      // setAudioProgress(50);
-
-      // Create a blob from the audio stream
       const blob = await response.blob();
-
-      // Create a new object URL and set it to the audio element
       const url = URL.createObjectURL(blob);
-
-      // Clean up any previous URL
       if (audioUrl) {
         URL.revokeObjectURL(audioUrl);
       }
-
-      // Set the new URL
       setAudioUrl(url);
-
-      // Update the audio element's source
       if (audioRef.current) {
         audioRef.current.src = url;
         audioRef.current.load();
-
-        // Start playing automatically
         try {
           await audioRef.current.play();
           setIsPlaying(true);
         } catch (playError) {
-          console.error("Error playing audio:", playError);
           toast.error("Error starting playback");
         }
       }
-
       setAudioProgress(100);
       toast.success("Audio generated successfully");
     } catch (error: any) {
-      if (error.name === "AbortError") {
-        console.log("Audio generation fetch aborted.");
-      } else {
-        console.error("Error generating audio:", error);
+      if (error.name !== "AbortError") {
         toast.error("Failed to generate audio", {
           description: error.message || "Unknown error occurred",
         });
@@ -364,53 +275,43 @@ export function PdfViewer() {
   };
 
   const handleGenerateAudioForCurrentPage = async () => {
-    // Stop any ongoing audio or fetch
     setIsGeneratingAudio(true);
     stopAudio();
-
     if (!pageTexts[pageNumber - 1]) {
       toast.error("No text available for this page.");
       return;
     }
-
     try {
       setIsGeneratingAudio(true);
       await fetchTTS(pageTexts[pageNumber - 1]);
     } catch (error) {
-      console.error("Error generating audio:", error);
       toast.error("Error generating audio.");
     } finally {
       setIsGeneratingAudio(false);
     }
   };
 
-  // Play/Pause button
   function togglePlayPause() {
     if (!audioRef.current || !audioUrl) return;
-
     if (isPlaying) {
       audioRef.current.pause();
     } else {
-      audioRef.current.play().catch((err) => {
-        console.error("Error playing audio:", err);
+      audioRef.current.play().catch(() => {
         toast.error("Could not play audio");
       });
     }
   }
 
-  // Handle voice selection from the VoiceSelector component
   const handleVoiceChange = (voice: string) => {
     setSelectedVoice(voice);
   };
 
   return (
-    <div className="flex w-screen h-screen overflow-hidden">
-      {/* LEFT SIDE: PDF Viewer */}
-      <div className="flex-1 max-h-[75%] overflow-hidden flex flex-col max-w-[45%]">
-        {/* If no file, show upload prompt */}
+    <div className="flex flex-col md:flex-row w-full min-h-screen overflow-auto">
+      <div className="md:w-[55%] w-full overflow-auto flex flex-col p-4">
         {!file ? (
           <div
-            className="flex-1 border-2 border-dashed border-border rounded-lg my-4 mr-4 p-12 text-center hover:border-primary/50 transition-colors"
+            className="flex-1 border-2 border-dashed border-border rounded-lg p-8 text-center hover:border-primary/50 transition-colors"
             onDrop={handleDrop}
             onDragOver={handleDragOver}
           >
@@ -426,7 +327,7 @@ export function PdfViewer() {
               </div>
               <Button
                 onClick={() => fileInputRef.current?.click()}
-                className="mt-2 cursor-pointer"
+                className="mt-2"
               >
                 <Upload className="mr-2 h-4 w-4" />
                 Select PDF
@@ -441,9 +342,7 @@ export function PdfViewer() {
             </div>
           </div>
         ) : (
-          // Else show the PDF viewer
           <div className="flex flex-col h-full overflow-hidden">
-            {/* Header Row */}
             <div className="flex items-center justify-between p-2 border-b bg-muted/50">
               <div className="flex items-center gap-2">
                 <FileText className="h-5 w-5 text-primary" />
@@ -460,11 +359,8 @@ export function PdfViewer() {
                 <X className="h-4 w-4" />
               </Button>
             </div>
-
-            {/* PDF Controls */}
             <div className="flex flex-wrap items-center justify-between p-2 border-b bg-muted/50">
-              {/* Zoom Controls */}
-              <div className="flex items-center gap-1">
+              <div className="flex items-center gap-1 mb-2 sm:mb-0">
                 <Button
                   variant="outline"
                   size="icon"
@@ -485,8 +381,6 @@ export function PdfViewer() {
                   <ZoomIn className="h-4 w-4" />
                 </Button>
               </div>
-
-              {/* Page Navigation */}
               <div className="flex items-center gap-1">
                 <Button
                   variant="outline"
@@ -522,14 +416,12 @@ export function PdfViewer() {
                 </Button>
               </div>
             </div>
-
-            {/* Main PDF Display */}
             <div
               className={cn(
                 "flex-1 flex justify-center bg-muted/30",
                 isLoading ? "items-center" : "items-start"
               )}
-              style={{ overflow: "scroll" }} // scrollable
+              style={{ overflow: "auto" }}
             >
               {docUrl ? (
                 <Document
@@ -555,17 +447,10 @@ export function PdfViewer() {
           </div>
         )}
       </div>
-
-      <div className="h-[75%] overflow-y-auto px-8 flex flex-col max-w-[45%] w-full">
-        {/* Title */}
-        {/* <div className="flex items-center mb-4">
-          <Volume2 className="mr-2 h-5 w-5 text-primary" />
-          <h3 className="text-lg font-medium">Text-to-Speech</h3>
-        </div> */}
-
+      <div className="md:w-[45%] w-full overflow-auto px-4 sm:px-8 flex flex-col py-4">
         <VoiceSelector
           selectedVoice={selectedVoice}
-          setSelectedVoice={setSelectedVoice}
+          setSelectedVoice={handleVoiceChange}
         />
         <div className="flex flex-col gap-2 mt-4">
           <AudioControls
@@ -574,7 +459,6 @@ export function PdfViewer() {
             temperature={temperature}
             setTemperature={setTemperature}
           />
-
           <div className="mt-4">
             <span className="text-sm font-medium">Generation Progress</span>
             {audioProgress > 0 && (
@@ -585,16 +469,12 @@ export function PdfViewer() {
             <Progress value={audioProgress} className="h-2 mt-1" />
           </div>
         </div>
-
-        {/* Hidden audio element for handling the audio */}
         <audio ref={audioRef} style={{ display: "none" }} />
-
-        {/* Buttons: Generate & Play/Pause */}
-        <div className="flex gap-2 mt-4">
+        <div className="flex flex-col sm:flex-row gap-2 mt-4">
           <Button
             onClick={handleGenerateAudioForCurrentPage}
             disabled={isGeneratingAudio || !pageTexts[pageNumber - 1]}
-            className="flex-1 cursor-pointer"
+            className="flex-1"
           >
             {isGeneratingAudio ? (
               <>
@@ -608,7 +488,7 @@ export function PdfViewer() {
           <Button
             variant={isPlaying ? "destructive" : "outline"}
             onClick={togglePlayPause}
-            disabled={!audioUrl} // only enable if we actually have audio
+            disabled={!audioUrl}
             className="flex-1"
           >
             {isPlaying ? (

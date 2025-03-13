@@ -1,10 +1,8 @@
 "use client";
-
 import React, { useState, useEffect, useRef } from "react";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
 import { VoiceSelector } from "./voice-selector";
-
 import {
   Select,
   SelectTrigger,
@@ -12,7 +10,6 @@ import {
   SelectContent,
   SelectItem,
 } from "@/components/ui/select";
-
 import {
   Dialog,
   DialogTrigger,
@@ -34,21 +31,14 @@ interface AgentChatProps {
 
 export function AgentChat({ context }: AgentChatProps) {
   const [ws, setWs] = useState<WebSocket | null>(null);
-
   const [messages, setMessages] = useState<Message[]>([]);
-
   const [isConnecting, setIsConnecting] = useState(false);
-
   const [isListening, setIsListening] = useState(false);
-
   const [interimTranscript, setInterimTranscript] = useState("");
   const [finalTranscript, setFinalTranscript] = useState("");
-
   const recognitionRef = useRef<any | null>(null);
-
   const [agents, setAgents] = useState<any[]>([]);
   const [selectedAgentId, setSelectedAgentId] = useState<string>("");
-
   const [open, setOpen] = useState(false);
   const [agentName, setAgentName] = useState("");
   const [agentDescription, setAgentDescription] = useState("");
@@ -59,21 +49,17 @@ export function AgentChat({ context }: AgentChatProps) {
     const SpeechRecognition =
       (window as any).SpeechRecognition ||
       (window as any).webkitSpeechRecognition;
-
     if (!SpeechRecognition) {
       toast.error("Speech recognition is not supported in your browser.");
       return;
     }
-
     const recognition = new SpeechRecognition();
     recognition.lang = "en-US";
     recognition.interimResults = true;
     recognition.maxAlternatives = 1;
-
     recognition.onresult = (event: any) => {
       let interim = "";
       let final = "";
-
       for (let i = event.resultIndex; i < event.results.length; i++) {
         const transcript = event.results[i][0]?.transcript ?? "";
         if (event.results[i].isFinal) {
@@ -82,37 +68,27 @@ export function AgentChat({ context }: AgentChatProps) {
           interim += transcript;
         }
       }
-
       setInterimTranscript(interim);
-
       if (final) {
         setFinalTranscript((prev) => (prev ? prev + " " + final : final));
       }
     };
-
     recognition.onerror = (event: any) => {
-      console.error("Speech recognition error:", event.error);
-      toast.error("Speech recognition error: " + event.error);
       setIsListening(false);
+      toast.error("Speech recognition error: " + event.error);
     };
-
     recognition.onend = () => {
       setIsListening(false);
-
       setFinalTranscript((prevFinal) => {
         const combined = (prevFinal + " " + interimTranscript).trim();
-
         setInterimTranscript("");
-
         if (combined) {
           sendMessage(combined);
         }
-
         return "";
       });
     };
-
-    recognitionRef.current = recognition as any;
+    recognitionRef.current = recognition;
   }, []);
 
   useEffect(() => {
@@ -124,9 +100,7 @@ export function AgentChat({ context }: AgentChatProps) {
         }
         const data = await res.json();
         setAgents(data.agents || []);
-      } catch (error) {
-        console.error("Error loading agents:", error);
-      }
+      } catch (error) {}
     }
     loadAgents();
   }, []);
@@ -146,13 +120,10 @@ export function AgentChat({ context }: AgentChatProps) {
         const err = await res.json();
         throw new Error(err.error || "Failed to create agent");
       }
-
       const newAgent = await res.json();
       toast.success("Agent created successfully!");
-
       setAgents((prev) => [...prev, newAgent]);
       setSelectedAgentId(newAgent.id);
-
       setOpen(false);
       setAgentName("");
       setAgentDescription("");
@@ -167,9 +138,7 @@ export function AgentChat({ context }: AgentChatProps) {
       toast.error("No agent selected.");
       return;
     }
-
     setIsConnecting(true);
-
     try {
       const res = await fetch("/api/agent-init", {
         method: "POST",
@@ -178,21 +147,16 @@ export function AgentChat({ context }: AgentChatProps) {
       });
       const data = await res.json();
       if (data.error) throw new Error(data.error);
-
       const { wsUrl } = data;
       const socket = new WebSocket(wsUrl);
-
       socket.onopen = () => {
-        console.log("WebSocket connected");
         setIsConnecting(false);
-
         socket.send(
           JSON.stringify({
             type: "setup",
             apiKey: `${process.env.NEXT_PUBLIC_PLAY_AI_API_KEY}`,
           })
         );
-
         if (initialTextMessage?.trim()) {
           socket.send(
             JSON.stringify({
@@ -206,11 +170,9 @@ export function AgentChat({ context }: AgentChatProps) {
           ]);
         }
       };
-
       socket.onmessage = (event) => {
         try {
           const msg = JSON.parse(event.data);
-
           switch (msg.type) {
             case "textOut":
               setMessages((prev) => [
@@ -218,7 +180,6 @@ export function AgentChat({ context }: AgentChatProps) {
                 { role: "agent", text: msg.data },
               ]);
               break;
-
             case "textStream":
               setMessages((prev) => {
                 const lastMsg = prev[prev.length - 1];
@@ -228,41 +189,28 @@ export function AgentChat({ context }: AgentChatProps) {
                     { role: "agent", text: lastMsg.text + msg.data },
                   ];
                 }
-
                 return [...prev, { role: "agent", text: msg.data }];
               });
               break;
-
             case "audioStream":
-              console.log("Received audioStream message");
               const audioBlob = base64ToBlob(msg.data, "audio/wav");
               const audioUrl = URL.createObjectURL(audioBlob);
               const audio = new Audio(audioUrl);
               audio.play();
               break;
-
             default:
-              console.log("Unknown message type:", msg);
               break;
           }
-        } catch (err) {
-          console.error("Error parsing agent message:", err);
-        }
+        } catch (err) {}
       };
-
-      socket.onerror = (err) => {
-        console.error("WebSocket error:", err);
+      socket.onerror = () => {
         toast.error("A WebSocket error occurred.");
       };
-
       socket.onclose = () => {
-        console.log("Agent WebSocket connection closed.");
         setWs(null);
       };
-
       setWs(socket);
     } catch (err: any) {
-      console.error(err);
       setIsConnecting(false);
       toast.error("Failed to connect to the agent: " + err.message);
     }
@@ -270,7 +218,6 @@ export function AgentChat({ context }: AgentChatProps) {
 
   const sendMessage = (messageText: string) => {
     if (!messageText.trim()) return;
-
     if (!ws || ws.readyState !== WebSocket.OPEN) {
       connectWebSocket(messageText);
     } else {
@@ -285,12 +232,10 @@ export function AgentChat({ context }: AgentChatProps) {
     const bytesLength = byteCharacters.length;
     const slicesCount = Math.ceil(bytesLength / sliceSize);
     const byteArrays = new Array(slicesCount);
-
     for (let sliceIndex = 0; sliceIndex < slicesCount; sliceIndex++) {
       const begin = sliceIndex * sliceSize;
       const end = Math.min(begin + sliceSize, bytesLength);
       const bytes = new Array(end - begin);
-
       for (let offset = begin, i = 0; offset < end; offset++, i++) {
         bytes[i] = byteCharacters[offset].charCodeAt(0);
       }
@@ -304,7 +249,6 @@ export function AgentChat({ context }: AgentChatProps) {
       toast.error("Speech recognition is not supported.");
       return;
     }
-
     if (isListening) {
       recognitionRef.current.stop();
     } else {
@@ -313,9 +257,7 @@ export function AgentChat({ context }: AgentChatProps) {
       try {
         recognitionRef.current.start();
         setIsListening(true);
-      } catch (err) {
-        console.error("Error starting speech recognition:", err);
-      }
+      } catch (err) {}
     }
   };
 
@@ -331,9 +273,7 @@ export function AgentChat({ context }: AgentChatProps) {
 
   return (
     <div className="border-t mt-4 pt-4">
-      {/* ----- TOP RIGHT CONTROLS: Select Agent & Create Agent Modal ----- */}
-      <div className="flex justify-end items-center mb-4 gap-4">
-        {/* Agent Selector */}
+      <div className="flex flex-col sm:flex-row justify-end items-center mb-4 gap-4">
         <div className="flex items-center gap-2">
           <span className="text-sm">Select Agent:</span>
           <Select
@@ -352,8 +292,6 @@ export function AgentChat({ context }: AgentChatProps) {
             </SelectContent>
           </Select>
         </div>
-
-        {/* Dialog: Create a New Agent */}
         <Dialog open={open} onOpenChange={setOpen}>
           <DialogTrigger asChild>
             <Button variant="outline">Create Agent</Button>
@@ -362,10 +300,9 @@ export function AgentChat({ context }: AgentChatProps) {
             <DialogHeader>
               <DialogTitle>Create New Agent</DialogTitle>
               <DialogDescription>
-                Provide the details for your new agent below.
+                Provide details for your new agent below.
               </DialogDescription>
             </DialogHeader>
-
             <div className="flex flex-col gap-2 py-2">
               <input
                 id="agentName"
@@ -388,15 +325,12 @@ export function AgentChat({ context }: AgentChatProps) {
                 setSelectedVoice={setSelectedVoice}
               />
             </div>
-
             <DialogFooter>
               <Button onClick={handleCreateAgent}>Submit</Button>
             </DialogFooter>
           </DialogContent>
         </Dialog>
       </div>
-
-      {/* ----- Chat UI ----- */}
       <h4 className="text-sm font-medium mb-2">Talk to the selected agent</h4>
       <div className="h-32 overflow-y-auto bg-background p-2 rounded mb-2 border border-border">
         {messages.map((msg, index) => (
@@ -410,15 +344,12 @@ export function AgentChat({ context }: AgentChatProps) {
             {msg.text}
           </div>
         ))}
-        {/* Show partial speech while user is talking */}
         {isListening && interimTranscript && (
           <div className="mb-1 text-gray-600 italic">
             <strong>You (speaking):</strong> {interimTranscript}
           </div>
         )}
       </div>
-
-      {/* Speech Buttons */}
       <div className="flex items-center gap-2">
         <Button onClick={toggleListening} disabled={isConnecting}>
           {isListening ? "Stop Listening" : "Speak"}
@@ -427,9 +358,7 @@ export function AgentChat({ context }: AgentChatProps) {
           <span className="text-sm text-green-600">Listening...</span>
         )}
       </div>
-
-      {/* Manual text input */}
-      <div className="mt-4 flex gap-2">
+      <div className="mt-4 flex flex-col sm:flex-row gap-2">
         <input
           type="text"
           placeholder="Type your message"
@@ -438,7 +367,9 @@ export function AgentChat({ context }: AgentChatProps) {
             if (e.key === "Enter") handleManualSend();
           }}
         />
-        <Button onClick={handleManualSend}>Send</Button>
+        <Button onClick={handleManualSend} className="whitespace-nowrap">
+          Send
+        </Button>
       </div>
     </div>
   );
