@@ -36,8 +36,8 @@ export async function POST(req: NextRequest) {
       headers: {
         Accept: "audio/mpeg",
         "Content-Type": "application/json",
-        Authorization: `ak-c3eaeadb838944cfaec82e41129a71f3`,
-        "X-USER-ID": "5jcbndHqeMg9yRPw95Ti5cVfNus2",
+        Authorization: `${process.env.PLAY_AI_API_KEY}`,
+        "X-USER-ID": `${process.env.PLAY_AI_USER_ID}`,
       },
       body: JSON.stringify(payload),
     };
