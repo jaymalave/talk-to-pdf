@@ -1,10 +1,8 @@
-
-
 # Project Name
 
 AutoPDF - Transform the way you read, listen, and interact with PDFs.
 
- https://autopdf.jaymalve.dev
+https://autopdf.jaymalve.dev
 
 A NextJS-based application that leverages MongoDB, Tailwind CSS, shadcn UI components, and React PDF for an efficient and modern web PDF experience.
 
@@ -64,21 +62,17 @@ MONGODB_URI=YOUR_MONGODB_URI
 
 ### Explanation of Environment Variables
 
--   **PLAY_AI_API_KEY**:  
-    Your secret API key for the Play AI service. This key is used on the server-side to authenticate API requests and should remain confidential.
-    
--   **PLAY_AI_USER_ID**:  
-    Your unique user identifier associated with the Play AI service. This is used on the backend for authentication and user-specific operations.
-    
--   **NEXT_PUBLIC_PLAY_AI_API_KEY**:  
-    The public version of the Play AI API key. This is exposed to the client-side to enable frontend interactions with the Play AI service. Note that this key should have limited permissions compared to the secret key.
-    
--   **NEXT_PUBLIC_PLAY_AI_USER_ID**:  
-    The public user identifier for the Play AI service. This variable is used on the frontend to help identify the user during client-side operations.
-    
--   **MONGODB_URI**:  
-    The connection string for your MongoDB database. This URI should include your MongoDB credentials and connection details. For MongoDB Atlas, it usually looks like:  
-    `mongodb+srv://<username>:<password>@cluster0.your-cluster.mongodb.net/`
+- **PLAY_AI_API_KEY**:  
+  Your secret API key for the Play AI service. This key is used on the server-side to authenticate API requests and should remain confidential.
+- **PLAY_AI_USER_ID**:  
+  Your unique user identifier associated with the Play AI service. This is used on the backend for authentication and user-specific operations.
+- **NEXT_PUBLIC_PLAY_AI_API_KEY**:  
+  The public version of the Play AI API key. This is exposed to the client-side to enable frontend interactions with the Play AI service. Note that this key should have limited permissions compared to the secret key.
+- **NEXT_PUBLIC_PLAY_AI_USER_ID**:  
+  The public user identifier for the Play AI service. This variable is used on the frontend to help identify the user during client-side operations.
+- **MONGODB_URI**:  
+  The connection string for your MongoDB database. This URI should include your MongoDB credentials and connection details. For MongoDB Atlas, it usually looks like:  
+  `mongodb+srv://<username>:<password>@cluster0.your-cluster.mongodb.net/`
 
 ## Running the Application
 
@@ -88,6 +82,8 @@ bash
 
 Copy
 
-`npm run dev` 
+`npm run dev`
 
 Open your browser and navigate to http://localhost:3000 to see the application in action.
+
+

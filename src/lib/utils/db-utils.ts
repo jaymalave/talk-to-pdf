@@ -13,6 +13,7 @@ let cachedClient: MongoClient | null = null;
 
 export interface Agent {
   _id?: ObjectId;
+  id: string;
   name: string;
   description: string;
   voice: string;
@@ -61,6 +62,7 @@ export async function getAgentById(agentId: string): Promise<Agent | null> {
  * Create a new agent document in MongoDB.
  */
 export async function createAgent(
+  id: string,
   name: string,
   description: string,
   voice: string
@@ -68,6 +70,7 @@ export async function createAgent(
   const collection = await getAgentsCollection();
   const now = new Date();
   const newAgent: Omit<Agent, "_id"> = {
+    id,
     name,
     description,
     voice,

@@ -30,8 +30,9 @@ export async function POST(req: NextRequest) {
     }
 
     const data = await response.json();
+    console.log("data from create-agent route", data);
 
-    const saveAgent = await createAgent(name, description, voice);
+    const saveAgent = await createAgent(data.id, name, description, voice);
     console.log("saved agent", saveAgent);
 
     console.log("created agent data", data);

@@ -99,6 +99,7 @@ export function AgentChat({ context }: AgentChatProps) {
           throw new Error("Failed to load agents");
         }
         const data = await res.json();
+        console.log(data, "data from agents");
         setAgents(data.agents || []);
       } catch (error) {}
     }
@@ -123,7 +124,7 @@ export function AgentChat({ context }: AgentChatProps) {
       const newAgent = await res.json();
       toast.success("Agent created successfully!");
       setAgents((prev) => [...prev, newAgent]);
-      setSelectedAgentId(newAgent.id);
+      setSelectedAgentId(newAgent._id);
       setOpen(false);
       setAgentName("");
       setAgentDescription("");
@@ -281,11 +282,11 @@ export function AgentChat({ context }: AgentChatProps) {
             onValueChange={(value) => setSelectedAgentId(value)}
           >
             <SelectTrigger className="w-[200px]">
-              <SelectValue placeholder="Choose an agent" />
+              <SelectValue placeholder="" />
             </SelectTrigger>
             <SelectContent>
               {agents.map((agent) => (
-                <SelectItem key={agent.id} value={agent.id}>
+                <SelectItem key={agent._id} value={agent._id}>
                   {agent.name}
                 </SelectItem>
               ))}
