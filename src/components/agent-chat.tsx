@@ -379,7 +379,7 @@ export function AgentChat({ context }: AgentChatProps) {
         <input
           type="text"
           placeholder="Type your message"
-          className="border p-1 flex-1"
+          className="border p-1 px-2 flex-1 rounded-md border-border focus:outline-none font-sm"
           onKeyDown={(e) => {
             if (e.key === "Enter") handleManualSend();
           }}
