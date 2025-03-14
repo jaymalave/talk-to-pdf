@@ -19,7 +19,7 @@ import {
   DialogDescription,
   DialogFooter,
 } from "@/components/ui/dialog";
-
+import { Loader2 } from "lucide-react";
 type Message = {
   role: "user" | "agent";
   text: string;
@@ -44,6 +44,7 @@ export function AgentChat({ context }: AgentChatProps) {
   const [agentDescription, setAgentDescription] = useState("");
   const [agentPrompt, setAgentPrompt] = useState("");
   const [selectedVoice, setSelectedVoice] = useState("");
+  const [isCreatingAgent, setIsCreatingAgent] = useState(false);
 
   useEffect(() => {
     const SpeechRecognition =
@@ -107,6 +108,7 @@ export function AgentChat({ context }: AgentChatProps) {
   }, []);
 
   const handleCreateAgent = async () => {
+    setIsCreatingAgent(true);
     try {
       const res = await fetch("/api/create-agent", {
         method: "POST",
@@ -131,6 +133,8 @@ export function AgentChat({ context }: AgentChatProps) {
       setAgentPrompt("");
     } catch (error: any) {
       toast.error("Error creating agent: " + error.message);
+    } finally {
+      setIsCreatingAgent(false);
     }
   };
 
@@ -327,7 +331,19 @@ export function AgentChat({ context }: AgentChatProps) {
               />
             </div>
             <DialogFooter>
-              <Button onClick={handleCreateAgent}>Submit</Button>
+              <Button
+                onClick={handleCreateAgent}
+                disabled={isCreatingAgent}
+                className="cursor-pointer"
+              >
+                {isCreatingAgent ? (
+                  <div className="flex items-center gap-2">
+                    <Loader2 className="w-4 h-4 animate-spin" /> Creating...
+                  </div>
+                ) : (
+                  "Submit"
+                )}
+              </Button>
             </DialogFooter>
           </DialogContent>
         </Dialog>
