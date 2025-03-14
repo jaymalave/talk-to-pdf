@@ -126,7 +126,7 @@ export function AgentChat({ context }: AgentChatProps) {
       const newAgent = await res.json();
       toast.success("Agent created successfully!");
       setAgents((prev) => [...prev, newAgent]);
-      setSelectedAgentId(newAgent._id);
+      setSelectedAgentId(newAgent.id);
       setOpen(false);
       setAgentName("");
       setAgentDescription("");
